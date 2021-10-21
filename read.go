@@ -154,7 +154,6 @@ func readPixelData(r dicomio.Reader, t tag.Tag, vr string, vl uint32, d *Dataset
 			if fc != nil {
 				fc <- &f
 			}
-			image.RawData = data
 			image.Frames = append(image.Frames, f)
 		}
 		return &pixelDataValue{PixelDataInfo: image}, nil
@@ -185,20 +184,22 @@ func getNthBit(data byte, n int) int {
 	return 0
 }
 
-func fillBufferSingleBitAllocated(pixelData []int, d dicomio.Reader, bo binary.ByteOrder) error {
+func fillBufferSingleBitAllocated(pixelData []int, d dicomio.Reader, bo binary.ByteOrder) ([]byte, error) {
 	debug.Logf("len of pixeldata: %d", len(pixelData))
 	if len(pixelData)%8 > 0 {
-		return errors.New("when bitsAllocated is 1, we can't read a number of samples that is not a multiple of 8")
+		return nil, errors.New("when bitsAllocated is 1, we can't read a number of samples that is not a multiple of 8")
 	}
 
 	var currentByte byte
+	var totalByte []byte
 	for i := 0; i < len(pixelData)/8; i++ {
 		rawData := make([]byte, 1)
 		_, err := d.Read(rawData)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		currentByte = rawData[0]
+		totalByte = append(totalByte, currentByte)
 		debug.Logf("currentByte: %0b", currentByte)
 
 		// Read in the 8 bits from the current byte.
@@ -217,7 +218,7 @@ func fillBufferSingleBitAllocated(pixelData []int, d dicomio.Reader, bo binary.B
 
 	}
 
-	return nil
+	return totalByte, nil
 }
 
 // readNativeFrames reads NativeData frames from a Decoder based on already parsed pixel information
@@ -226,7 +227,6 @@ func readNativeFrames(d dicomio.Reader, parsedData *Dataset, fc chan<- *frame.Fr
 	bytesRead int, err error) {
 	image := PixelDataInfo{
 		IsEncapsulated: false,
-		RawData:        make([]byte, 0),
 	}
 
 	// Parse information from previously parsed attributes that are needed to parse NativeData Frames:
@@ -276,6 +276,7 @@ func readNativeFrames(d dicomio.Reader, parsedData *Dataset, fc chan<- *frame.Fr
 	pixelBuf := make([]byte, bytesAllocated)
 	for frameIdx := 0; frameIdx < nFrames; frameIdx++ {
 		// Init current frame
+		var frameRawData []byte
 		currentFrame := frame.Frame{
 			Encapsulated: false,
 			NativeData: frame.NativeFrame{
@@ -287,7 +288,7 @@ func readNativeFrames(d dicomio.Reader, parsedData *Dataset, fc chan<- *frame.Fr
 		}
 		buf := make([]int, int(pixelsPerFrame)*samplesPerPixel)
 		if bitsAllocated == 1 {
-			if err := fillBufferSingleBitAllocated(buf, d, bo); err != nil {
+			if frameRawData, err = fillBufferSingleBitAllocated(buf, d, bo); err != nil {
 				return nil, bytesRead, err
 			}
 			for pixel := 0; pixel < int(pixelsPerFrame); pixel++ {
@@ -299,6 +300,7 @@ func readNativeFrames(d dicomio.Reader, parsedData *Dataset, fc chan<- *frame.Fr
 			for pixel := 0; pixel < int(pixelsPerFrame); pixel++ {
 				for value := 0; value < samplesPerPixel; value++ {
 					_, err := io.ReadFull(d, pixelBuf)
+					frameRawData = append(frameRawData, pixelBuf...)
 					if err != nil {
 						return nil, bytesRead,
 							fmt.Errorf("could not read uint%d from input: %w", bitsAllocated, err)
@@ -317,12 +319,12 @@ func readNativeFrames(d dicomio.Reader, parsedData *Dataset, fc chan<- *frame.Fr
 				currentFrame.NativeData.Data[pixel] = buf[pixel*samplesPerPixel : (pixel+1)*samplesPerPixel]
 			}
 		}
+		currentFrame.NativeData.RawData = frameRawData
 		image.Frames[frameIdx] = currentFrame
 		if fc != nil {
 			fc <- &currentFrame // write the current frame to the frame channel
 		}
 	}
-	image.RawData = pixelBuf
 
 	bytesRead = bytesAllocated * samplesPerPixel * pixelsPerFrame * nFrames
 

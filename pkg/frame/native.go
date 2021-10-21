@@ -12,6 +12,7 @@ type NativeFrame struct {
 	Rows          int
 	Cols          int
 	BitsPerSample int
+	RawData       []byte
 }
 
 // IsEncapsulated indicates if the frame is encapsulated or not.
