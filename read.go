@@ -11,12 +11,12 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/suyashkumar/dicom/pkg/debug"
-	"github.com/suyashkumar/dicom/pkg/vrraw"
+	"github.com/LawyZheng/dicom/pkg/debug"
+	"github.com/LawyZheng/dicom/pkg/vrraw"
 
-	"github.com/suyashkumar/dicom/pkg/dicomio"
-	"github.com/suyashkumar/dicom/pkg/frame"
-	"github.com/suyashkumar/dicom/pkg/tag"
+	"github.com/LawyZheng/dicom/pkg/dicomio"
+	"github.com/LawyZheng/dicom/pkg/frame"
+	"github.com/LawyZheng/dicom/pkg/tag"
 )
 
 var (

@@ -7,17 +7,17 @@ import (
 	"os"
 	"testing"
 
-	"github.com/suyashkumar/dicom/pkg/vrraw"
+	"github.com/LawyZheng/dicom/pkg/vrraw"
 
-	"github.com/suyashkumar/dicom/pkg/frame"
+	"github.com/LawyZheng/dicom/pkg/frame"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/suyashkumar/dicom/pkg/dicomio"
-	"github.com/suyashkumar/dicom/pkg/tag"
-	"github.com/suyashkumar/dicom/pkg/uid"
+	"github.com/LawyZheng/dicom/pkg/dicomio"
+	"github.com/LawyZheng/dicom/pkg/tag"
+	"github.com/LawyZheng/dicom/pkg/uid"
 )
 
 // TestWrite tests the write package by ensuring that it is consistent with the
