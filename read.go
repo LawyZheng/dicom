@@ -154,7 +154,7 @@ func readPixelData(r dicomio.Reader, t tag.Tag, vr string, vl uint32, d *Dataset
 			if fc != nil {
 				fc <- &f
 			}
-
+			image.RawData = data
 			image.Frames = append(image.Frames, f)
 		}
 		return &pixelDataValue{PixelDataInfo: image}, nil
@@ -226,6 +226,7 @@ func readNativeFrames(d dicomio.Reader, parsedData *Dataset, fc chan<- *frame.Fr
 	bytesRead int, err error) {
 	image := PixelDataInfo{
 		IsEncapsulated: false,
+		RawData:        make([]byte, 0),
 	}
 
 	// Parse information from previously parsed attributes that are needed to parse NativeData Frames:
@@ -321,6 +322,7 @@ func readNativeFrames(d dicomio.Reader, parsedData *Dataset, fc chan<- *frame.Fr
 			fc <- &currentFrame // write the current frame to the frame channel
 		}
 	}
+	image.RawData = pixelBuf
 
 	bytesRead = bytesAllocated * samplesPerPixel * pixelsPerFrame * nFrames
 

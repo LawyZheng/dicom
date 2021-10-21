@@ -299,6 +299,7 @@ type PixelDataInfo struct {
 	Frames         []frame.Frame
 	IsEncapsulated bool `json:"isEncapsulated"`
 	Offsets        []uint32
+	RawData        []byte
 }
 
 // pixelDataValue represents DICOM PixelData
