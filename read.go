@@ -279,13 +279,24 @@ func readNativeFrames(d dicomio.Reader, parsedData *Dataset, fc chan<- *frame.Fr
 		var frameRawData []byte
 		currentFrame := frame.Frame{
 			Encapsulated: false,
-			NativeData: frame.NativeFrame{
-				BitsPerSample: bitsAllocated,
-				Rows:          MustGetInts(rows.Value)[0],
-				Cols:          MustGetInts(cols.Value)[0],
-				Data:          make([][]int, int(pixelsPerFrame)),
+			NativeData:   frame.NativeFrame{
+				// BitsPerSample: bitsAllocated,
+				// Rows:          MustGetInts(rows.Value)[0],
+				// Cols:          MustGetInts(cols.Value)[0],
+				// Data:          make([][]int, int(pixelsPerFrame)),
 			},
 		}
+		frameRawData, err = io.ReadAll(d)
+		if err != nil {
+			return nil, 0, err
+		}
+		currentFrame.NativeData.RawData = frameRawData
+		image.Frames[frameIdx] = currentFrame
+		if fc != nil {
+			fc <- &currentFrame // write the current frame to the frame channel
+		}
+		return &image, 0, nil
+
 		buf := make([]int, int(pixelsPerFrame)*samplesPerPixel)
 		if bitsAllocated == 1 {
 			if frameRawData, err = fillBufferSingleBitAllocated(buf, d, bo); err != nil {

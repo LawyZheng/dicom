@@ -225,3 +225,12 @@ func buildTabs(number uint) string {
 	}
 	return b.String()
 }
+
+// Get Patient Name
+func (d *Dataset) GetPatientName() (string, error) {
+	e, err := d.FindElementByTag(tag.PatientName)
+	if err != nil {
+		return "", err
+	}
+	return e.Value.String(), nil
+}
