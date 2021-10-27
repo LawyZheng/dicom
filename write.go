@@ -563,35 +563,42 @@ func writePixelData(w dicomio.Writer, t tag.Tag, value Value, vr string, vl uint
 		}
 	} else {
 		numFrames := len(image.Frames)
-		numPixels := len(image.Frames[0].NativeData.Data)
-		numValues := len(image.Frames[0].NativeData.Data[0])
+		if numFrames < 1 {
+			return nil
+		}
+		// numPixels := len(image.Frames[0].NativeData.Data)
+		// numValues := len(image.Frames[0].NativeData.Data[0])
 		// Total required buffer length in bytes:
-		length := numFrames * numPixels * numValues * image.Frames[0].NativeData.BitsPerSample / 8
+		// length := numFrames * numPixels * numValues * image.Frames[0].NativeData.BitsPerSample / 8
 
 		buf := &bytes.Buffer{}
-		buf.Grow(length)
+		buf.Grow(int(image.Frames[0].Length))
 		for frame := 0; frame < numFrames; frame++ {
-			for pixel := 0; pixel < numPixels; pixel++ {
-				for value := 0; value < numValues; value++ {
-					pixelValue := image.Frames[frame].NativeData.Data[pixel][value]
-					switch image.Frames[frame].NativeData.BitsPerSample {
-					case 8:
-						if err := binary.Write(buf, binary.LittleEndian, uint8(pixelValue)); err != nil {
-							return err
-						}
-					case 16:
-						if err := binary.Write(buf, binary.LittleEndian, uint16(pixelValue)); err != nil {
-							return err
-						}
-					case 32:
-						if err := binary.Write(buf, binary.LittleEndian, uint32(pixelValue)); err != nil {
-							return err
-						}
-					default:
-						return ErrorUnsupportedBitsPerSample
-					}
-				}
+			if _, err := buf.Write(image.Frames[frame].NativeData.RawData); err != nil {
+				return err
 			}
+
+			// for pixel := 0; pixel < numPixels; pixel++ {
+			// 	for value := 0; value < numValues; value++ {
+			// 		pixelValue := image.Frames[frame].NativeData.Data[pixel][value]
+			// 		switch image.Frames[frame].NativeData.BitsPerSample {
+			// 		case 8:
+			// 			if err := binary.Write(buf, binary.LittleEndian, uint8(pixelValue)); err != nil {
+			// 				return err
+			// 			}
+			// 		case 16:
+			// 			if err := binary.Write(buf, binary.LittleEndian, uint16(pixelValue)); err != nil {
+			// 				return err
+			// 			}
+			// 		case 32:
+			// 			if err := binary.Write(buf, binary.LittleEndian, uint32(pixelValue)); err != nil {
+			// 				return err
+			// 			}
+			// 		default:
+			// 			return ErrorUnsupportedBitsPerSample
+			// 		}
+			// 	}
+			// }
 		}
 		if err := w.WriteBytes(buf.Bytes()); err != nil {
 			return err

@@ -39,6 +39,7 @@ type Frame struct {
 	// NativeData holds the native data for this frame if Encapsulated is set
 	// to false.
 	NativeData NativeFrame
+	Length     uint64
 }
 
 // IsEncapsulated indicates if the frame is encapsulated or not.

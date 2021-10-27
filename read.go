@@ -145,6 +145,7 @@ func readPixelData(r dicomio.Reader, t tag.Tag, vr string, vl uint32, d *Dataset
 			}
 
 			f := frame.Frame{
+				Length:       uint64(len(data)),
 				Encapsulated: true,
 				EncapsulatedData: frame.EncapsulatedFrame{
 					Data: data,
@@ -271,15 +272,17 @@ func readNativeFrames(d dicomio.Reader, parsedData *Dataset, fc chan<- *frame.Fr
 
 	// Parse the pixels:
 	image.Frames = make([]frame.Frame, nFrames)
-	bo := d.ByteOrder()
+	// bo := d.ByteOrder()
 	bytesAllocated := bitsAllocated / 8
-	pixelBuf := make([]byte, bytesAllocated)
-	frameBuf := make([]byte, pixelsPerFrame*bytesAllocated*samplesPerPixel)
+	// pixelBuf := make([]byte, bytesAllocated)
+	length := pixelsPerFrame * bytesAllocated * samplesPerPixel
+	frameBuf := make([]byte, length)
 	for frameIdx := 0; frameIdx < nFrames; frameIdx++ {
 		// Init current frame
-		var frameRawData []byte
+		// var frameRawData []byte
 		currentFrame := frame.Frame{
 			Encapsulated: false,
+			Length:       uint64(length),
 			NativeData:   frame.NativeFrame{
 				// BitsPerSample: bitsAllocated,
 				// Rows:          MustGetInts(rows.Value)[0],
@@ -291,54 +294,48 @@ func readNativeFrames(d dicomio.Reader, parsedData *Dataset, fc chan<- *frame.Fr
 		if err != nil {
 			return nil, 0, err
 		}
+
+		// buf := make([]int, int(pixelsPerFrame)*samplesPerPixel)
+		// if bitsAllocated == 1 {
+		// 	if frameRawData, err = fillBufferSingleBitAllocated(buf, d, bo); err != nil {
+		// 		return nil, bytesRead, err
+		// 	}
+		// 	for pixel := 0; pixel < int(pixelsPerFrame); pixel++ {
+		// 		for value := 0; value < samplesPerPixel; value++ {
+		// 			currentFrame.NativeData.Data[pixel] = buf[pixel*samplesPerPixel : (pixel+1)*samplesPerPixel]
+		// 		}
+		// 	}
+		// } else {
+		// 	for pixel := 0; pixel < int(pixelsPerFrame); pixel++ {
+		// 		for value := 0; value < samplesPerPixel; value++ {
+		// 			_, err := io.ReadFull(d, pixelBuf)
+		// 			frameRawData = append(frameRawData, pixelBuf...)
+		// 			if err != nil {
+		// 				return nil, bytesRead,
+		// 					fmt.Errorf("could not read uint%d from input: %w", bitsAllocated, err)
+		// 			}
+
+		// 			if bitsAllocated == 8 {
+		// 				buf[(pixel*samplesPerPixel)+value] = int(pixelBuf[0])
+		// 			} else if bitsAllocated == 16 {
+		// 				buf[(pixel*samplesPerPixel)+value] = int(bo.Uint16(pixelBuf))
+		// 			} else if bitsAllocated == 32 {
+		// 				buf[(pixel*samplesPerPixel)+value] = int(bo.Uint32(pixelBuf))
+		// 			} else {
+		// 				return nil, bytesRead, fmt.Errorf("unsupported BitsAllocated value of: %d : %w", bitsAllocated, ErrorUnsupportedBitsAllocated)
+		// 			}
+		// 		}
+		// 		currentFrame.NativeData.Data[pixel] = buf[pixel*samplesPerPixel : (pixel+1)*samplesPerPixel]
+		// 	}
+		// }
 		currentFrame.NativeData.RawData = frameBuf
-		image.Frames[frameIdx] = currentFrame
-		if fc != nil {
-			fc <- &currentFrame // write the current frame to the frame channel
-		}
-		return &image, 0, nil
-
-		buf := make([]int, int(pixelsPerFrame)*samplesPerPixel)
-		if bitsAllocated == 1 {
-			if frameRawData, err = fillBufferSingleBitAllocated(buf, d, bo); err != nil {
-				return nil, bytesRead, err
-			}
-			for pixel := 0; pixel < int(pixelsPerFrame); pixel++ {
-				for value := 0; value < samplesPerPixel; value++ {
-					currentFrame.NativeData.Data[pixel] = buf[pixel*samplesPerPixel : (pixel+1)*samplesPerPixel]
-				}
-			}
-		} else {
-			for pixel := 0; pixel < int(pixelsPerFrame); pixel++ {
-				for value := 0; value < samplesPerPixel; value++ {
-					_, err := io.ReadFull(d, pixelBuf)
-					frameRawData = append(frameRawData, pixelBuf...)
-					if err != nil {
-						return nil, bytesRead,
-							fmt.Errorf("could not read uint%d from input: %w", bitsAllocated, err)
-					}
-
-					if bitsAllocated == 8 {
-						buf[(pixel*samplesPerPixel)+value] = int(pixelBuf[0])
-					} else if bitsAllocated == 16 {
-						buf[(pixel*samplesPerPixel)+value] = int(bo.Uint16(pixelBuf))
-					} else if bitsAllocated == 32 {
-						buf[(pixel*samplesPerPixel)+value] = int(bo.Uint32(pixelBuf))
-					} else {
-						return nil, bytesRead, fmt.Errorf("unsupported BitsAllocated value of: %d : %w", bitsAllocated, ErrorUnsupportedBitsAllocated)
-					}
-				}
-				currentFrame.NativeData.Data[pixel] = buf[pixel*samplesPerPixel : (pixel+1)*samplesPerPixel]
-			}
-		}
-		currentFrame.NativeData.RawData = frameRawData
 		image.Frames[frameIdx] = currentFrame
 		if fc != nil {
 			fc <- &currentFrame // write the current frame to the frame channel
 		}
 	}
 
-	bytesRead = bytesAllocated * samplesPerPixel * pixelsPerFrame * nFrames
+	bytesRead = length * nFrames
 
 	return &image, bytesRead, nil
 }
