@@ -4,7 +4,7 @@ import (
 	"image"
 	"testing"
 
-	"github.com/LawyZheng/dicom/pkg/frame"
+	"github.com/LawyZheng/go-dicom/pkg/frame"
 )
 
 // point represents a 2D point for testing.

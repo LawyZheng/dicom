@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/LawyZheng/dicom/pkg/tag"
+	"github.com/LawyZheng/go-dicom/pkg/tag"
 	"github.com/google/go-cmp/cmp"
 )
 

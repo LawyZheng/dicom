@@ -10,12 +10,12 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/LawyZheng/dicom/pkg/vrraw"
+	"github.com/LawyZheng/go-dicom/pkg/vrraw"
 
-	"github.com/LawyZheng/dicom/pkg/dicomio"
-	"github.com/LawyZheng/dicom/pkg/frame"
+	"github.com/LawyZheng/go-dicom/pkg/dicomio"
+	"github.com/LawyZheng/go-dicom/pkg/frame"
 
-	"github.com/LawyZheng/dicom/pkg/tag"
+	"github.com/LawyZheng/go-dicom/pkg/tag"
 	"github.com/google/go-cmp/cmp"
 )
 

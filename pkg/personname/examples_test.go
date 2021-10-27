@@ -3,7 +3,7 @@ package personname_test
 import (
 	"fmt"
 
-	"github.com/LawyZheng/dicom/pkg/personname"
+	"github.com/LawyZheng/go-dicom/pkg/personname"
 )
 
 // The below test does not pass, I think due to the ideograms being incorrectly

@@ -27,12 +27,12 @@ import (
 	"io"
 	"os"
 
-	"github.com/LawyZheng/dicom/pkg/charset"
-	"github.com/LawyZheng/dicom/pkg/debug"
-	"github.com/LawyZheng/dicom/pkg/dicomio"
-	"github.com/LawyZheng/dicom/pkg/frame"
-	"github.com/LawyZheng/dicom/pkg/tag"
-	"github.com/LawyZheng/dicom/pkg/uid"
+	"github.com/LawyZheng/go-dicom/pkg/charset"
+	"github.com/LawyZheng/go-dicom/pkg/debug"
+	"github.com/LawyZheng/go-dicom/pkg/dicomio"
+	"github.com/LawyZheng/go-dicom/pkg/frame"
+	"github.com/LawyZheng/go-dicom/pkg/tag"
+	"github.com/LawyZheng/go-dicom/pkg/uid"
 )
 
 const (

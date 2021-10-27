@@ -1,4 +1,4 @@
-module github.com/LawyZheng/dicom
+module github.com/LawyZheng/go-dicom
 
 go 1.13
 

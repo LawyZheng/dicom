@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LawyZheng/dicom/pkg/tag"
+	"github.com/LawyZheng/go-dicom/pkg/tag"
 
-	"github.com/LawyZheng/dicom/pkg/frame"
+	"github.com/LawyZheng/go-dicom/pkg/frame"
 
-	"github.com/LawyZheng/dicom"
+	"github.com/LawyZheng/go-dicom"
 )
 
 // TestParse is an end-to-end sanity check over DICOMs in testdata/. Currently it only checks that no error is returned

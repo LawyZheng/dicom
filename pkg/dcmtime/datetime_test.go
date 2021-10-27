@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LawyZheng/dicom/pkg/dcmtime"
+	"github.com/LawyZheng/go-dicom/pkg/dcmtime"
 )
 
 func TestParseDatetime(t *testing.T) {

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/LawyZheng/dicom/pkg/frame"
-	"github.com/LawyZheng/dicom/pkg/tag"
+	"github.com/LawyZheng/go-dicom/pkg/frame"
+	"github.com/LawyZheng/go-dicom/pkg/tag"
 )
 
 // ErrorUnexpectedDataType indicates that an unexpected (not allowed) data type was sent to NewValue.

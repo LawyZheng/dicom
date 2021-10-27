@@ -12,9 +12,9 @@ import (
 	"os"
 	"sync"
 
-	"github.com/LawyZheng/dicom"
-	"github.com/LawyZheng/dicom/pkg/frame"
-	"github.com/LawyZheng/dicom/pkg/tag"
+	"github.com/LawyZheng/go-dicom"
+	"github.com/LawyZheng/go-dicom/pkg/frame"
+	"github.com/LawyZheng/go-dicom/pkg/tag"
 )
 
 // GitVersion is the current version of dicomutil, will be replaced in release step with current git commit hash or tag.

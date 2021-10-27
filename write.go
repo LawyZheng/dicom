@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/LawyZheng/dicom/pkg/vrraw"
+	"github.com/LawyZheng/go-dicom/pkg/vrraw"
 
-	"github.com/LawyZheng/dicom/pkg/uid"
+	"github.com/LawyZheng/go-dicom/pkg/uid"
 
-	"github.com/LawyZheng/dicom/pkg/dicomio"
-	"github.com/LawyZheng/dicom/pkg/tag"
+	"github.com/LawyZheng/go-dicom/pkg/dicomio"
+	"github.com/LawyZheng/go-dicom/pkg/tag"
 )
 
 var (

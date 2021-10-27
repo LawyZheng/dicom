@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LawyZheng/dicom/pkg/tag"
-	"github.com/LawyZheng/dicom/pkg/uid"
+	"github.com/LawyZheng/go-dicom/pkg/tag"
+	"github.com/LawyZheng/go-dicom/pkg/uid"
 )
 
 // ErrorElementNotFound indicates that the requested element was not found in
