@@ -47,7 +47,9 @@ func (w *Writer) WriteString(v string, encoder *encoding.Encoder) error {
 	// if no encoder, use default utf-8
 	if encoder == nil {
 		_, err := w.out.Write([]byte(v))
-		return err
+		if err != nil {
+			return err
+		}
 	}
 
 	b, err := encoder.Bytes([]byte(v))
