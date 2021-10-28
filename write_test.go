@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/LawyZheng/go-dicom/pkg/charset"
 	"github.com/LawyZheng/go-dicom/pkg/vrraw"
 
 	"github.com/LawyZheng/go-dicom/pkg/frame"
@@ -683,7 +684,7 @@ func TestWriteElement(t *testing.T) {
 	}}
 
 	buf := bytes.Buffer{}
-	w := NewWriter(&buf)
+	w := NewWriter(&buf, charset.EncodingSystem{})
 	w.SetTransferSyntax(binary.LittleEndian, true)
 
 	for _, e := range writeDS.Elements {

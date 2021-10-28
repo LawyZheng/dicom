@@ -3,6 +3,8 @@ package dicomio
 import (
 	"encoding/binary"
 	"io"
+
+	"golang.org/x/text/encoding"
 )
 
 // Writer is a lower level encoder that manages writing out entities to an
@@ -41,8 +43,20 @@ func (w *Writer) WriteZeros(len int) error {
 }
 
 // WriteString writes the provided string to the Writer.
-func (w *Writer) WriteString(v string) error {
-	_, err := w.out.Write([]byte(v))
+func (w *Writer) WriteString(v string, encoder *encoding.Encoder) error {
+	// if no encoder, use default utf-8
+	if encoder == nil {
+		_, err := w.out.Write([]byte(v))
+		if err != nil {
+			return err
+		}
+	}
+
+	b, err := encoder.Bytes([]byte(v))
+	if err != nil {
+		return err
+	}
+	_, err = w.out.Write(b)
 	return err
 }
 

@@ -22,6 +22,13 @@ type CodingSystem struct {
 	Phonetic    *encoding.Decoder
 }
 
+// EncodingSystem defines how to write dicom with default encoding
+type EncodingSystem struct {
+	Alphabetic  *encoding.Encoder
+	Ideographic *encoding.Encoder
+	Phonetic    *encoding.Encoder
+}
+
 // CodingSystemType defines the where the coding system is going to be
 // used. This distinction is useful in Japanese, but of little use in other
 // languages.
@@ -77,13 +84,15 @@ var htmlEncodingNames = map[string]string{
 // "ISO-IR 100" to encoding.Decoder(s). It will return nil, nil for the default (7bit
 // ASCII) encoding. Cf. P3.2
 // D.6.2. http://dicom.nema.org/medical/dicom/2016d/output/chtml/part02/sect_D.6.2.html
-func ParseSpecificCharacterSet(encodingNames []string) (CodingSystem, error) {
+func ParseSpecificCharacterSet(encodingNames []string) (CodingSystem, EncodingSystem, error) {
 	var decoders []*encoding.Decoder
+	var encoders []*encoding.Encoder
 	for _, name := range encodingNames {
 		var c *encoding.Decoder
+		var e *encoding.Encoder
 		if htmlName, ok := htmlEncodingNames[name]; !ok {
 			// TODO(saito) Support more encodings.
-			return CodingSystem{}, fmt.Errorf("ParseSpecificCharacterSet: Unknown character set '%s'. Assuming utf-8", name)
+			return CodingSystem{}, EncodingSystem{}, fmt.Errorf("ParseSpecificCharacterSet: Unknown character set '%s'. Assuming utf-8", name)
 		} else {
 			if htmlName != "" {
 				d, err := htmlindex.Get(htmlName)
@@ -91,18 +100,28 @@ func ParseSpecificCharacterSet(encodingNames []string) (CodingSystem, error) {
 					panic(fmt.Sprintf("Encoding name %s (for %s) not found", name, htmlName))
 				}
 				c = d.NewDecoder()
+				e = d.NewEncoder()
 			}
 		}
 		decoders = append(decoders, c)
+		encoders = append(encoders, e)
 	}
 	if len(decoders) == 0 {
-		return CodingSystem{nil, nil, nil}, nil
+		return CodingSystem{nil, nil, nil},
+			EncodingSystem{nil, nil, nil},
+			nil
 	}
 	if len(decoders) == 1 {
-		return CodingSystem{decoders[0], decoders[0], decoders[0]}, nil
+		return CodingSystem{decoders[0], decoders[0], decoders[0]},
+			EncodingSystem{encoders[0], encoders[0], encoders[0]},
+			nil
 	}
 	if len(decoders) == 2 {
-		return CodingSystem{decoders[0], decoders[1], decoders[1]}, nil
+		return CodingSystem{decoders[0], decoders[1], decoders[1]},
+			EncodingSystem{encoders[0], encoders[1], encoders[1]},
+			nil
 	}
-	return CodingSystem{decoders[0], decoders[1], decoders[2]}, nil
+	return CodingSystem{decoders[0], decoders[1], decoders[2]},
+		EncodingSystem{encoders[0], encoders[1], encoders[2]},
+		nil
 }

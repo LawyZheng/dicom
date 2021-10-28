@@ -175,13 +175,14 @@ func (p *Parser) Next() (*Element, error) {
 
 	if elem.Tag == tag.SpecificCharacterSet {
 		encodingNames := MustGetStrings(elem.Value)
-		cs, err := charset.ParseSpecificCharacterSet(encodingNames)
+		cs, es, err := charset.ParseSpecificCharacterSet(encodingNames)
 		if err != nil {
 			// unable to parse character set, hard error
 			// TODO: add option continue, even if unable to parse
 			return nil, err
 		}
 		p.reader.SetCodingSystem(cs)
+		p.dataset.SetEncodingSystem(es)
 	}
 
 	p.dataset.Elements = append(p.dataset.Elements, elem)

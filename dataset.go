@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/LawyZheng/go-dicom/pkg/charset"
 	"github.com/LawyZheng/go-dicom/pkg/tag"
 	"github.com/LawyZheng/go-dicom/pkg/uid"
 )
@@ -23,6 +24,12 @@ var ErrorElementNotFound = errors.New("element not found")
 // within this Dataset (including Elements nested within Sequences).
 type Dataset struct {
 	Elements []*Element `json:"elements"`
+	es       charset.EncodingSystem
+}
+
+// SetEncodingSystem define to set dicom encoding
+func (d *Dataset) SetEncodingSystem(es charset.EncodingSystem) {
+	d.es = es
 }
 
 // FindElementByTag searches through the dataset and returns a pointer to the matching element.

@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"io"
 
+	"golang.org/x/text/encoding"
+
+	"github.com/LawyZheng/go-dicom/pkg/charset"
 	"github.com/LawyZheng/go-dicom/pkg/vrraw"
 
 	"github.com/LawyZheng/go-dicom/pkg/uid"
@@ -35,9 +38,10 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer, that points to the provided io.Writer.
-func NewWriter(out io.Writer, opts ...WriteOption) *Writer {
+func NewWriter(out io.Writer, es charset.EncodingSystem, opts ...WriteOption) *Writer {
 	optSet := toWriteOptSet(opts...)
 	w := dicomio.NewWriter(out, nil, false)
+	optSet.SetEncodingSystem(es)
 
 	return &Writer{
 		writer: w,
@@ -95,7 +99,7 @@ func (w *Writer) WriteElement(e *Element) error {
 // Write will write the input DICOM dataset to the provided io.Writer as a complete DICOM (including any header
 // information if available).
 func Write(out io.Writer, ds Dataset, opts ...WriteOption) error {
-	w := NewWriter(out, opts...)
+	w := NewWriter(out, ds.es, opts...)
 	return w.writeDataset(ds)
 }
 
@@ -133,6 +137,7 @@ type writeOptSet struct {
 	skipVRVerification           bool
 	skipValueTypeVerification    bool
 	defaultMissingTransferSyntax bool
+	es                           charset.EncodingSystem
 }
 
 func toWriteOptSet(opts ...WriteOption) *writeOptSet {
@@ -141,6 +146,10 @@ func toWriteOptSet(opts ...WriteOption) *writeOptSet {
 		opt(optSet)
 	}
 	return optSet
+}
+
+func (w *writeOptSet) SetEncodingSystem(es charset.EncodingSystem) {
+	w.es = es
 }
 
 func writeFileHeader(w dicomio.Writer, ds *Dataset, metaElems []*Element, opts writeOptSet) error {
@@ -189,7 +198,7 @@ func writeFileHeader(w dicomio.Writer, ds *Dataset, metaElems []*Element, opts w
 	if err := w.WriteZeros(128); err != nil {
 		return err
 	}
-	if err := w.WriteString(magicWord); err != nil {
+	if err := w.WriteString(magicWord, opts.es.Ideographic); err != nil {
 		return err
 	}
 	lengthElem, err := NewElement(tag.FileMetaInformationGroupLength, []int{len(metaBytes.Bytes())})
@@ -365,7 +374,7 @@ func writeVRVL(w dicomio.Writer, t tag.Tag, vr string, vl uint32) error {
 		implicit = true
 	}
 	if !implicit { // Explicit
-		if err := w.WriteString(vr); err != nil {
+		if err := w.WriteString(vr, nil); err != nil {
 			return err
 		}
 		switch vr {
@@ -438,7 +447,7 @@ func writeValue(w dicomio.Writer, t tag.Tag, value Value, valueType ValueType, v
 	v := value.GetValue()
 	switch valueType {
 	case Strings:
-		return writeStrings(w, v.([]string), vr)
+		return writeStrings(w, v.([]string), vr, opts.es.Ideographic)
 	case Bytes:
 		return writeBytes(w, v.([]byte), vr)
 	case Ints:
@@ -456,7 +465,7 @@ func writeValue(w dicomio.Writer, t tag.Tag, value Value, valueType ValueType, v
 	}
 }
 
-func writeStrings(w dicomio.Writer, values []string, vr string) error {
+func writeStrings(w dicomio.Writer, values []string, vr string, encoder *encoding.Encoder) error {
 	s := ""
 	for i, substr := range values {
 		if i > 0 {
@@ -464,7 +473,7 @@ func writeStrings(w dicomio.Writer, values []string, vr string) error {
 		}
 		s += substr
 	}
-	if err := w.WriteString(s); err != nil {
+	if err := w.WriteString(s, encoder); err != nil {
 		return err
 	}
 	if len(s)%2 == 1 {
@@ -473,7 +482,7 @@ func writeStrings(w dicomio.Writer, values []string, vr string) error {
 			vrraw.ShortString, vrraw.ShortText, vrraw.UnlimitedText,
 			vrraw.DecimalString, vrraw.CodeString, vrraw.Time,
 			vrraw.IntegerString, vrraw.Unknown:
-			if err := w.WriteString(" "); err != nil { // http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_6.2
+			if err := w.WriteString(" ", encoder); err != nil { // http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_6.2
 				return err
 			}
 		default:
