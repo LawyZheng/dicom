@@ -485,10 +485,10 @@ func writeStrings(w dicomio.Writer, values []string, vr string, encoder *encodin
 			if err := w.WriteString(" ", encoder); err != nil { // http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_6.2
 				return err
 			}
-		default:
-			if err := w.WriteByte(0); err != nil {
-				return err
-			}
+			// default:
+			// 	if err := w.WriteByte(0); err != nil {
+			// 		return err
+			// 	}
 		}
 	}
 	return nil
