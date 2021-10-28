@@ -54,6 +54,12 @@ func (w *Writer) WriteString(v string, encoder *encoding.Encoder) error {
 	if err != nil {
 		return err
 	}
+
+	// if length is odd, padding
+	if len(b)%2 != 0 {
+		b = append(b, 0x00)
+	}
+
 	_, err = w.out.Write(b)
 	return err
 }
