@@ -44,13 +44,14 @@ func (w *Writer) WriteZeros(len int) error {
 
 // WriteString writes the provided string to the Writer.
 func (w *Writer) WriteString(v string, encoder *encoding.Encoder) error {
+	var b []byte
+	var err error
 	// if no encoder, use default utf-8
-	if encoder == nil {
-		_, err := w.out.Write([]byte(v))
-		return err
+	if encoder != nil {
+		b, err = encoder.Bytes([]byte(v))
+	} else {
+		b = []byte(v)
 	}
-
-	b, err := encoder.Bytes([]byte(v))
 	if err != nil {
 		return err
 	}
