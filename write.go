@@ -198,7 +198,7 @@ func writeFileHeader(w dicomio.Writer, ds *Dataset, metaElems []*Element, opts w
 	if err := w.WriteZeros(128); err != nil {
 		return err
 	}
-	if err := w.WriteString(magicWord, opts.es.Ideographic); err != nil {
+	if _, err := w.WriteString(magicWord, opts.es.Ideographic); err != nil {
 		return err
 	}
 	lengthElem, err := NewElement(tag.FileMetaInformationGroupLength, []int{len(metaBytes.Bytes())})
@@ -374,7 +374,7 @@ func writeVRVL(w dicomio.Writer, t tag.Tag, vr string, vl uint32) error {
 		implicit = true
 	}
 	if !implicit { // Explicit
-		if err := w.WriteString(vr, nil); err != nil {
+		if _, err := w.WriteString(vr, nil); err != nil {
 			return err
 		}
 		switch vr {
@@ -473,16 +473,19 @@ func writeStrings(w dicomio.Writer, values []string, vr string, encoder *encodin
 		}
 		s += substr
 	}
-	if err := w.WriteString(s, encoder); err != nil {
+
+	var i int
+	var err error
+	if i, err = w.WriteString(s, encoder); err != nil {
 		return err
 	}
-	if len(s)%2 == 1 {
+	if i%2 == 1 {
 		switch vr {
 		case vrraw.DateTime, vrraw.LongString, vrraw.LongText, vrraw.PersonName,
 			vrraw.ShortString, vrraw.ShortText, vrraw.UnlimitedText,
 			vrraw.DecimalString, vrraw.CodeString, vrraw.Time,
 			vrraw.IntegerString, vrraw.Unknown:
-			if err := w.WriteString(" ", encoder); err != nil { // http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_6.2
+			if _, err := w.WriteString(" ", encoder); err != nil { // http://dicom.nema.org/medical/dicom/current/output/html/part05.html#sect_6.2
 				return err
 			}
 		default:

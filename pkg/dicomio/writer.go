@@ -43,21 +43,23 @@ func (w *Writer) WriteZeros(len int) error {
 }
 
 // WriteString writes the provided string to the Writer.
-func (w *Writer) WriteString(v string, encoder *encoding.Encoder) error {
+func (w *Writer) WriteString(v string, encoder *encoding.Encoder) (int, error) {
+	var b []byte
+	var err error
+
 	// if no encoder, use default utf-8
-	if encoder == nil {
-		_, err := w.out.Write([]byte(v))
-		if err != nil {
-			return err
-		}
+	if encoder != nil {
+		b, err = encoder.Bytes([]byte(v))
+	} else {
+		b = []byte(v)
 	}
 
-	b, err := encoder.Bytes([]byte(v))
 	if err != nil {
-		return err
+		return 0, err
 	}
+
 	_, err = w.out.Write(b)
-	return err
+	return len(b), err
 }
 
 // WriteByte writes the provided byte to the Writer.
