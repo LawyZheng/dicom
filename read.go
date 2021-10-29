@@ -297,10 +297,10 @@ func readNativeFrames(d dicomio.Reader, parsedData *Dataset, fc chan<- *frame.Fr
 	bytesAllocated := bitsAllocated / 8
 	// pixelBuf := make([]byte, bytesAllocated)
 	length := pixelsPerFrame * bytesAllocated * samplesPerPixel
-	frameBuf := make([]byte, length)
 	for frameIdx := 0; frameIdx < nFrames; frameIdx++ {
 		// Init current frame
 		// var frameRawData []byte
+		frameBuf := make([]byte, length)
 		currentFrame := frame.Frame{
 			Encapsulated: false,
 			Length:       uint64(length),
