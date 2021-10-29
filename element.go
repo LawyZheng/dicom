@@ -363,6 +363,80 @@ func MustGetPixelDataInfo(v Value) PixelDataInfo {
 	return v.GetValue().(PixelDataInfo)
 }
 
+// MustGetFirstInt attemps to get the first int value out of the
+// provided Value, and will return error if it is unable to do so.
+func MustGetFirstInt(v Value) (i int, e error) {
+	defer func() {
+		if err := recover(); err != nil {
+			e = fmt.Errorf(err.(string))
+		}
+	}()
+
+	l := MustGetInts(v)
+	if len(l) == 0 {
+		return 0, fmt.Errorf("MustGetFirstInt expected at least one value, got: %v", len(l))
+	}
+	return l[0], nil
+}
+
+// MustGetFirstString attemps to get the first string value out of the
+// provided Value, and will return error if it is unable to do so.
+func MustGetFirstString(v Value) (s string, e error) {
+	defer func() {
+		if err := recover(); err != nil {
+			e = fmt.Errorf(err.(string))
+		}
+	}()
+
+	l := MustGetStrings(v)
+	if len(l) == 0 {
+		return "", fmt.Errorf("MustGetFirstString expected at least one value, got: %v", len(l))
+	}
+	return l[0], nil
+}
+
+// MustGetFirstFloat attemps to get the first float value out of the
+// provided Value, and will return error if it is unable to do so.
+func MustGetFirstFloat(v Value) (f float64, e error) {
+	defer func() {
+		if err := recover(); err != nil {
+			e = fmt.Errorf(err.(string))
+		}
+	}()
+
+	l := MustGetFloats(v)
+	if len(l) == 0 {
+		return 0, fmt.Errorf("MustGetFirstFloat expected at least one value, got: %v", len(l))
+	}
+	return l[0], nil
+}
+
+// MustGetFirstBytes attemps to get the first []byte value out of the
+// provided Value, and will return error if it is unable to do so.
+func MustGetFirstBytes(v Value) (b []byte, e error) {
+	defer func() {
+		if err := recover(); err != nil {
+			e = fmt.Errorf(err.(string))
+		}
+	}()
+
+	l := MustGetBytes(v)
+	return l, nil
+}
+
+// MustGetFirstPixelData attemps to get the first pixalData value out of the
+// provided Value, and will return error if it is unable to do so.
+func MustGetFirstPixelData(v Value) (p PixelDataInfo, e error) {
+	defer func() {
+		if err := recover(); err != nil {
+			e = fmt.Errorf(err.(string))
+		}
+	}()
+
+	l := MustGetPixelDataInfo(v)
+	return l, nil
+}
+
 // allValues is used for tests that need to pass in instances of the unexported
 // value structs to cmp.AllowUnexported.
 var allValues = []interface{}{
