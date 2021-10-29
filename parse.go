@@ -144,7 +144,12 @@ func NewParser(in io.Reader, bytesToRead int64, frameChannel chan *frame.Frame, 
 	if err != nil {
 		debug.Log("WARN: could not find transfer syntax uid in metadata, proceeding with little endian implicit")
 	} else {
-		bo, implicit, err = uid.ParseTransferSyntaxUID(MustGetStrings(ts.Value)[0])
+		tsUid, err := MustGetFirstString(ts.Value)
+		if err == nil {
+			bo, implicit, err = uid.ParseTransferSyntaxUID(tsUid)
+		}
+
+		// bo, implicit, err = uid.ParseTransferSyntaxUID(MustGetStrings(ts.Value)[0])
 		if err != nil {
 			// TODO(suyashkumar): should we attempt to parse with LittleEndian
 			// Implicit here?
@@ -231,7 +236,11 @@ func (p *Parser) readHeader() ([]*Element, error) {
 		return nil, ErrorMetaElementGroupLength
 	}
 
-	metaLen := maybeMetaLen.Value.GetValue().([]int)[0]
+	// metaLen := maybeMetaLen.Value.GetValue().([]int)[0]
+	metaLen, err := MustGetFirstInt(maybeMetaLen.Value)
+	if err != nil {
+		return nil, err
+	}
 
 	metaElems := []*Element{maybeMetaLen} // TODO: maybe set capacity to a reasonable initial size
 

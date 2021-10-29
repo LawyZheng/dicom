@@ -245,7 +245,12 @@ func readNativeFrames(d dicomio.Reader, parsedData *Dataset, fc chan<- *frame.Fr
 	nFrames := 0
 	if err == nil {
 		// No error, so parse number of frames
-		nFrames, err = strconv.Atoi(MustGetStrings(nof.Value)[0]) // odd that number of frames is encoded as a string...
+		s, err := MustGetFirstString(nof.Value)
+		if err != nil {
+			return nil, 0, err
+		}
+		nFrames, err = strconv.Atoi(s) // odd that number of frames is encoded as a string...
+		// nFrames, err = strconv.Atoi(MustGetStrings(nof.Value)[0]) // odd that number of frames is encoded as a string...
 		if err != nil {
 			return nil, 0, err
 		}
@@ -258,17 +263,33 @@ func readNativeFrames(d dicomio.Reader, parsedData *Dataset, fc chan<- *frame.Fr
 	if err != nil {
 		return nil, 0, err
 	}
-	bitsAllocated := MustGetInts(b.Value)[0]
+	// bitsAllocated := MustGetInts(b.Value)[0]
+	bitsAllocated, err := MustGetFirstInt(b.Value)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	s, err := parsedData.FindElementByTag(tag.SamplesPerPixel)
 	if err != nil {
 		return nil, 0, err
 	}
-	samplesPerPixel := MustGetInts(s.Value)[0]
+	// samplesPerPixel := MustGetInts(s.Value)[0]
+	samplesPerPixel, err := MustGetFirstInt(s.Value)
+	if err != nil {
+		return nil, 0, err
+	}
 
-	pixelsPerFrame := MustGetInts(rows.Value)[0] * MustGetInts(cols.Value)[0]
+	row, err := MustGetFirstInt(rows.Value)
+	if err != nil {
+		return nil, 0, err
+	}
+	col, err := MustGetFirstInt(cols.Value)
+	if err != nil {
+		return nil, 0, err
+	}
 
-	debug.Logf("readNativeFrames:\nRows: %d\nCols:%d\nFrames::%d\nBitsAlloc:%d\nSamplesPerPixel:%d", MustGetInts(rows.Value)[0], MustGetInts(cols.Value)[0], nFrames, bitsAllocated, samplesPerPixel)
+	pixelsPerFrame := row * col
+	debug.Logf("readNativeFrames:\nRows: %d\nCols:%d\nFrames::%d\nBitsAlloc:%d\nSamplesPerPixel:%d", row, col, nFrames, bitsAllocated, samplesPerPixel)
 
 	// Parse the pixels:
 	image.Frames = make([]frame.Frame, nFrames)
