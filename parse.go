@@ -201,6 +201,12 @@ func (p *Parser) GetMetadata() Dataset {
 	return p.metadata
 }
 
+// GetDataSet returns just the dataset  that have been parsed
+// so far.
+func (p *Parser) GetDataSet() Dataset {
+	return p.dataset
+}
+
 // SetTransferSyntax sets the transfer syntax for the underlying dicomio.Reader.
 func (p *Parser) SetTransferSyntax(bo binary.ByteOrder, implicit bool) {
 	p.reader.SetTransferSyntax(bo, implicit)
