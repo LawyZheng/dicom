@@ -114,6 +114,8 @@ const (
 	VRDate
 	// VRPixelData means the element stores a PixelDataInfo
 	VRPixelData
+	// No Need To Encode
+	VRNotEncode
 )
 
 // GetVRKind returns the golang value encoding of an element with <tag, vr>.
@@ -122,6 +124,8 @@ func GetVRKind(tag Tag, vr string) VRKind {
 		return VRItem
 	} else if tag == PixelData {
 		return VRPixelData
+	} else if tag.Group == 0x1011 {
+		return VRNotEncode
 	}
 
 	switch vr {
