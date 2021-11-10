@@ -315,7 +315,7 @@ func verifyVROrDefault(t tag.Tag, vr string, opts writeOptSet) (string, error) {
 func verifyValueType(t tag.Tag, value Value, vr string) error {
 	valueType := value.ValueType()
 	var ok bool
-	if t.Group == 0x1011 {
+	if t.Group%2 != 0 {
 		if valueType == Bytes {
 			return nil
 		} else {
@@ -507,7 +507,7 @@ func writeStrings(w dicomio.Writer, values []string, vr string, encoder *encodin
 
 func writeBytes(w dicomio.Writer, t tag.Tag, values []byte, vr string) error {
 	var err error
-	if t.Group == 0x1011 {
+	if t.Group%2 != 0 {
 		err = writeOtherByteString(w, values)
 		if err != nil {
 			return err

@@ -100,7 +100,7 @@ func readValue(r dicomio.Reader, t tag.Tag, vr string, vl uint32, isImplicit boo
 	vrkind := tag.GetVRKind(t, vr)
 	// TODO: if we keep consistent function signature, consider a static map of VR to func?
 	switch vrkind {
-	case tag.VRBytes, tag.VRNotEncode:
+	case tag.VRBytes, tag.VRPrivate:
 		return readBytes(r, t, vr, vl)
 	case tag.VRString:
 		return readString(r, t, vr, vl)
@@ -457,7 +457,7 @@ func readSequenceItem(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value,
 func readBytes(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error) {
 	// TODO: add special handling of PixelData
 	// private tag also use byte value
-	if vr == vrraw.OtherByte || t.Group == 0x1011 {
+	if vr == vrraw.OtherByte || t.Group%2 != 0 {
 		data := make([]byte, vl)
 		_, err := io.ReadFull(r, data)
 		return &bytesValue{value: data}, err
