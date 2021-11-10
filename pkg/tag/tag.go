@@ -123,9 +123,6 @@ func GetVRKind(tag Tag, vr string) VRKind {
 	} else if tag == PixelData {
 		return VRPixelData
 	}
-	if tag.Group == 0x1011 {
-		return VRBytes
-	}
 
 	switch vr {
 	case "DA":
