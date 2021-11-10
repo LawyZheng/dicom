@@ -315,6 +315,14 @@ func verifyVROrDefault(t tag.Tag, vr string, opts writeOptSet) (string, error) {
 func verifyValueType(t tag.Tag, value Value, vr string) error {
 	valueType := value.ValueType()
 	var ok bool
+	if t.Group == 0x1011 {
+		if valueType == Bytes {
+			return nil
+		} else {
+			return fmt.Errorf("ValueType does not match the specified type in the VR")
+		}
+	}
+
 	switch vr {
 	case vrraw.UnsignedShort, vrraw.UnsignedLong, vrraw.SignedLong, vrraw.SignedShort, vrraw.AttributeTag:
 		ok = valueType == Ints
