@@ -509,9 +509,10 @@ func writeBytes(w dicomio.Writer, t tag.Tag, values []byte, vr string) error {
 	var err error
 	if t.Group == 0x1011 {
 		err = writeOtherByteString(w, values)
-	}
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 
 	switch vr {
