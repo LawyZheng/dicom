@@ -457,7 +457,7 @@ func writeValue(w dicomio.Writer, t tag.Tag, value Value, valueType ValueType, v
 	case Strings:
 		return writeStrings(w, v.([]string), vr, opts.es.Ideographic)
 	case Bytes:
-		return writeBytes(w, t, v.([]byte), vr)
+		return writeBytes(w, t, v.([]byte), vr, opts)
 	case Ints:
 		return writeInts(w, v.([]int), vr)
 	case PixelData:
@@ -505,13 +505,23 @@ func writeStrings(w dicomio.Writer, values []string, vr string, encoder *encodin
 	return nil
 }
 
-func writeBytes(w dicomio.Writer, t tag.Tag, values []byte, vr string) error {
+func writeBytes(w dicomio.Writer, t tag.Tag, values []byte, vr string, opts writeOptSet) error {
 	var err error
 	if t.Group%2 != 0 {
 		err = writeOtherByteString(w, values)
 		if err != nil {
 			return err
 		}
+		if vr == vrraw.Sequence {
+			// Write Sequence Delimitation Item as implicit VR
+			oldBO, oldImplicit := w.GetTransferSyntax()
+			w.SetTransferSyntax(oldBO, true)
+			if err := writeElement(w, sequenceDelimitationItem, opts); err != nil {
+				return err
+			}
+			w.SetTransferSyntax(oldBO, oldImplicit) // Return TS to what it was before.
+		}
+
 		return nil
 	}
 
