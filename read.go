@@ -630,7 +630,7 @@ func readElement(r dicomio.Reader, d *Dataset, fc chan<- *frame.Frame) (*Element
 
 	val, err := readValue(r, *t, vr, vl, readImplicit, d, fc)
 	if err != nil {
-		log.Println("error reading value ", err)
+		log.Printf("tag: %s, error reading value %s", *t, err)
 		return nil, err
 	}
 

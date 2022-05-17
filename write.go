@@ -365,7 +365,7 @@ func writeVRVL(w dicomio.Writer, t tag.Tag, vr string, vl uint32) error {
 		vl = tag.VLUndefinedLength
 	}
 
-	if vr == vrraw.Sequence {
+	if t.Group%2 == 0 && vr == vrraw.Sequence {
 		// We are going to write these out with undefined length always.
 		vl = tag.VLUndefinedLength
 	}
