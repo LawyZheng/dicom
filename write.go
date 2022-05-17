@@ -508,21 +508,22 @@ func writeStrings(w dicomio.Writer, values []string, vr string, encoder *encodin
 func writeBytes(w dicomio.Writer, t tag.Tag, values []byte, vr string, opts writeOptSet) error {
 	var err error
 	if t.Group%2 != 0 {
-		err = writeOtherByteString(w, values)
-		if err != nil {
-			return err
-		}
-		if vr == vrraw.Sequence {
-			// Write Sequence Delimitation Item as implicit VR
-			oldBO, oldImplicit := w.GetTransferSyntax()
-			w.SetTransferSyntax(oldBO, true)
-			if err := writeElement(w, sequenceDelimitationItem, opts); err != nil {
-				return err
-			}
-			w.SetTransferSyntax(oldBO, oldImplicit) // Return TS to what it was before.
-		}
+		return writeOtherByteString(w, values)
+		// err = writeOtherByteString(w, values)
+		// if err != nil {
+		// 	return err
+		// }
+		// if vr == vrraw.Sequence {
+		// 	// Write Sequence Delimitation Item as implicit VR
+		// 	oldBO, oldImplicit := w.GetTransferSyntax()
+		// 	w.SetTransferSyntax(oldBO, true)
+		// 	if err := writeElement(w, sequenceDelimitationItem, opts); err != nil {
+		// 		return err
+		// 	}
+		// 	w.SetTransferSyntax(oldBO, oldImplicit) // Return TS to what it was before.
+		// }
 
-		return nil
+		// return nil
 	}
 
 	switch vr {
