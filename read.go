@@ -98,9 +98,12 @@ func readVL(r dicomio.Reader, isImplicit bool, t tag.Tag, vr string) (uint32, er
 
 func readValue(r dicomio.Reader, t tag.Tag, vr string, vl uint32, isImplicit bool, d *Dataset, fc chan<- *frame.Frame) (Value, error) {
 	vrkind := tag.GetVRKind(t, vr)
+	if vl == tag.VLUndefinedLength {
+		debug.Logf("readValue: vrkind: %d", vrkind)
+	}
 	// TODO: if we keep consistent function signature, consider a static map of VR to func?
 	switch vrkind {
-	case tag.VRBytes, tag.VRPrivate:
+	case tag.VRBytes:
 		return readBytes(r, t, vr, vl)
 	case tag.VRString:
 		return readString(r, t, vr, vl)
@@ -116,6 +119,8 @@ func readValue(r dicomio.Reader, t tag.Tag, vr string, vl uint32, isImplicit boo
 		return readPixelData(r, t, vr, vl, d, fc)
 	case tag.VRFloat32List, tag.VRFloat64List:
 		return readFloat(r, t, vr, vl)
+	case tag.VRPrivate:
+		return readBytes(r, t, vr, vl)
 	default:
 		return readString(r, t, vr, vl)
 	}
@@ -454,10 +459,84 @@ func readSequenceItem(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value,
 	return &sequenceItem, nil
 }
 
+func ioReadUntilPrivateSeqEnd(r dicomio.Reader) (data []byte, n int, err error) {
+	data = make([]byte, 0)
+	for {
+
+		if b, ok := readNextOneByte(r, 0xFE); !ok {
+			n++
+			data = append(data, b)
+			continue
+		}
+		//读到FF后 继续读后面的字节 直到读到 0xFF 0xFE 0xE0 0xDD
+
+		if b, ok := readNextOneByte(r, 0xFF); !ok {
+			n++
+			data = append(data, b)
+			continue
+		}
+
+		//第三个字节
+		if b, ok := readNextOneByte(r, 0xDD); !ok {
+			n++
+			data = append(data, b)
+			continue
+		}
+		//第四个字节
+		if b, ok := readNextOneByte(r, 0xE0); !ok {
+			n++
+			data = append(data, b)
+			continue
+		}
+		return data, n, nil
+	}
+}
+func ioReadUntilPrivateSeqEnd2(r dicomio.Reader) (data []byte, n int, err error) {
+	data = make([]byte, 0)
+	for {
+
+		if b, ok := readNextUInt16(r, 0xFFFE); !ok {
+			n += 2
+			data = append(data, byte(b))
+			data = append(data, byte(b>>8))
+			continue
+		}
+		//读到FF后 继续读后面的字节 直到读到 0xFF 0xFE 0xE0 0xDD
+
+		if b, ok := readNextUInt16(r, 0xE0DD); !ok {
+			n += 2
+			data = append(data, byte(b))
+			data = append(data, byte(b>>8))
+			continue
+		}
+		return data, n, nil
+	}
+}
+
+//readNextOneByte read next one byte(uint8) from Reader
+// and compare to param 2
+// this method used to check if this Reader go to the end of SQ
+func readNextOneByte(r dicomio.Reader, equalTo uint8) (uint8, bool) {
+	out, _ := r.ReadUInt8()
+	return out, out == equalTo
+}
+func readNextUInt16(r dicomio.Reader, equalTo uint16) (uint16, bool) {
+	out, _ := r.ReadUInt16()
+	return out, out == equalTo
+}
+
+func readPrivateSQBytes(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error) {
+	data, _, err := ioReadUntilPrivateSeqEnd2(r)
+	return &bytesValue{value: data}, err
+}
+
 func readBytes(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error) {
 	// TODO: add special handling of PixelData
 	// private tag also use byte value
-	if vr == vrraw.OtherByte || t.Group%2 != 0 {
+	if vr == vrraw.OtherByte || vr == vrraw.Unknown || t.IsPrivate() {
+		if vl == tag.VLUndefinedLength {
+			return readPrivateSQBytes(r, t, vr, vl)
+		}
 		data := make([]byte, vl)
 		_, err := io.ReadFull(r, data)
 		return &bytesValue{value: data}, err

@@ -2,6 +2,7 @@ package dicom
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -240,4 +241,36 @@ func (d *Dataset) GetPatientName() (string, error) {
 		return "", err
 	}
 	return e.Value.String(), nil
+}
+
+func (d *Dataset) ToJsonString() string {
+	type JsonItem struct {
+		Tabs    string
+		Tag     string
+		TagName string
+		VR      string
+		VRRaw   string
+		VL      string
+		Value   string
+	}
+	list := make([]JsonItem, 0)
+	for elem := range d.flatIteratorWithLevel() {
+		tabs := buildTabs(elem.l)
+		var tagName string
+		if tagInfo, err := tag.Find(elem.e.Tag); err == nil {
+			tagName = tagInfo.Name
+		}
+
+		list = append(list, JsonItem{
+			Tabs:    tabs,
+			Tag:     elem.e.Tag.String(),
+			TagName: tagName,
+			VR:      elem.e.ValueRepresentation.String(),
+			VRRaw:   elem.e.RawValueRepresentation,
+			VL:      fmt.Sprintf("%d", elem.e.ValueLength),
+			Value:   fmt.Sprintf("%s", elem.e.Value.String()),
+		})
+	}
+	bs, _ := json.Marshal(&list)
+	return string(bs)
 }
