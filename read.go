@@ -509,6 +509,18 @@ func ioReadUntilPrivateSeqEnd2(r dicomio.Reader) (data []byte, n int, err error)
 			data = append(data, byte(b>>8))
 			continue
 		}
+		//读到结束码 要再读4个字节
+		if b, err := r.ReadUInt16(); err == nil {
+			n += 2
+			data = append(data, byte(b))
+			data = append(data, byte(b>>8))
+		}
+		if b, err := r.ReadUInt16(); err == nil {
+			n += 2
+			data = append(data, byte(b))
+			data = append(data, byte(b>>8))
+		}
+
 		return data, n, nil
 	}
 }
