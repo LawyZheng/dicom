@@ -5,14 +5,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/LawyZheng/go-dicom/pkg/debug"
+	"github.com/LawyZheng/go-dicom/pkg/vrraw"
 	"io"
 	"log"
 	"strconv"
 	"strings"
 	"unicode"
-
-	"github.com/LawyZheng/go-dicom/pkg/debug"
-	"github.com/LawyZheng/go-dicom/pkg/vrraw"
 
 	"github.com/LawyZheng/go-dicom/pkg/dicomio"
 	"github.com/LawyZheng/go-dicom/pkg/frame"
@@ -88,7 +87,7 @@ func readVL(r dicomio.Reader, isImplicit bool, t tag.Tag, vr string) (uint32, er
 			return 0, err
 		}
 		vl := uint32(vl16)
-		// Rectify Undefined Length VL
+		// Rectify Undefined Length Length
 		if vl == 0xffff {
 			vl = tag.VLUndefinedLength
 		}
@@ -395,7 +394,7 @@ func readSequence(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, err
 			sequences.value = append(sequences.value, subElement.Value.(*SequenceItemValue))
 		}
 	} else {
-		// Sequence of elements for a total of VL bytes
+		// Sequence of elements for a total of Length bytes
 		err := r.PushLimit(int64(vl))
 		if err != nil {
 			return nil, err
@@ -459,97 +458,66 @@ func readSequenceItem(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value,
 	return &sequenceItem, nil
 }
 
-func ioReadUntilPrivateSeqEnd(r dicomio.Reader) (data []byte, n int, err error) {
-	data = make([]byte, 0)
+// ioReadUntilPrivateSeqEnd peek to SQ End and return SQ data Length
+func ioReadUntilPrivateSeqEnd(r dicomio.Reader) (n int) {
+	currentDepth := 0
+	n = 0
+	//0xFF 0xFE 0xE0 0xDD 为序列结束符 同时后面跟 0x00 0x00 0x00 0x00
 	for {
-
-		if b, ok := readNextOneByte(r, 0xFE); !ok {
-			n++
-			data = append(data, b)
-			continue
-		}
-		//读到FF后 继续读后面的字节 直到读到 0xFF 0xFE 0xE0 0xDD
-
-		if b, ok := readNextOneByte(r, 0xFF); !ok {
-			n++
-			data = append(data, b)
-			continue
-		}
-
-		//第三个字节
-		if b, ok := readNextOneByte(r, 0xDD); !ok {
-			n++
-			data = append(data, b)
-			continue
-		}
-		//第四个字节
-		if b, ok := readNextOneByte(r, 0xE0); !ok {
-			n++
-			data = append(data, b)
-			continue
-		}
-		return data, n, nil
-	}
-}
-func ioReadUntilPrivateSeqEnd2(r dicomio.Reader) (data []byte, n int, err error) {
-	data = make([]byte, 0)
-	for {
-
-		if b, ok := readNextUInt16(r, 0xFFFE); !ok {
+		// 窥探下 接下来的 n+2 个字节的末尾两个字节是否是 0xFF 0xFE
+		// 小端模式 读取时 会将源数据 反转 即源数据 0xFE 0xFF -> 0xFF 0xFE
+		if a := peekNextUInt16(r, n); a != 0xFFFE {
 			n += 2
-			data = append(data, byte(b))
-			data = append(data, byte(b>>8))
 			continue
 		}
-		//读到FF后 继续读后面的字节 直到读到 0xFF 0xFE 0xE0 0xDD
+		n += 2
 
-		if b, ok := readNextUInt16(r, 0xE0DD); !ok {
+		u := peekNextUInt16(r, n)
+		switch u {
+		case 0xE000: // 遇到Item 起始标志 则深度+1 继续下2个字节的peek
+			currentDepth++
 			n += 2
-			data = append(data, byte(b))
-			data = append(data, byte(b>>8))
 			continue
-		}
-		//读到结束码 要再读4个字节
-		if b, err := r.ReadUInt16(); err == nil {
+		case 0xE00D: //遇到Item 结束标志 则深度-1 继续下2个字节的peek
+			currentDepth--
 			n += 2
-			data = append(data, byte(b))
-			data = append(data, byte(b>>8))
-		}
-		if b, err := r.ReadUInt16(); err == nil {
+			continue
+		case 0xE0DD: //遇到SQ结束标志，当深度为0 才表示SQ结束 则需要跳过接下来的6个字节
+			if currentDepth == 0 {
+				n += 6
+				break
+			} else { //深度不为0 则表示还在子SQ中，需要继续peek
+				currentDepth--
+				n += 2
+				continue
+			}
+		default:
+			// 这里一般不会执行 都会被 第一个 peekNextUInt16 跳过
 			n += 2
-			data = append(data, byte(b))
-			data = append(data, byte(b>>8))
-		}
+			continue
 
-		return data, n, nil
+		}
+		return n
 	}
 }
 
-//readNextOneByte read next one byte(uint8) from Reader
-// and compare to param 2
-// this method used to check if this Reader go to the end of SQ
-func readNextOneByte(r dicomio.Reader, equalTo uint8) (uint8, bool) {
-	out, _ := r.ReadUInt8()
-	return out, out == equalTo
-}
-func readNextUInt16(r dicomio.Reader, equalTo uint16) (uint16, bool) {
-	out, _ := r.ReadUInt16()
-	return out, out == equalTo
-}
-
-func readPrivateSQBytes(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error) {
-	data, _, err := ioReadUntilPrivateSeqEnd2(r)
-	return &bytesValue{value: data}, err
+//peekNextUInt16 peek next n+2 byte and return the last 2 byte
+func peekNextUInt16(r dicomio.Reader, n int) uint16 {
+	out, _ := r.Peek(n + 2)
+	// default is binary.LittleEndian
+	return r.ByteOrder().Uint16(out[len(out)-2:])
 }
 
 func readBytes(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error) {
 	// TODO: add special handling of PixelData
 	// private tag also use byte value
 	if vr == vrraw.OtherByte || vr == vrraw.Unknown || t.IsPrivate() {
+		var dataLen = int(vl)
+		// handle SQ when Length is -1
 		if vl == tag.VLUndefinedLength {
-			return readPrivateSQBytes(r, t, vr, vl)
+			dataLen = ioReadUntilPrivateSeqEnd(r)
 		}
-		data := make([]byte, vl)
+		data := make([]byte, dataLen)
 		_, err := io.ReadFull(r, data)
 		return &bytesValue{value: data}, err
 	} else if vr == vrraw.OtherWord {
@@ -749,7 +717,7 @@ func readRawItem(r dicomio.Reader) ([]byte, bool, error) {
 
 	if *t == tag.SequenceDelimitationItem {
 		if vl != 0 {
-			log.Printf("SequenceDelimitationItem's VL != 0: %d", vl)
+			log.Printf("SequenceDelimitationItem's Length != 0: %d", vl)
 		}
 		return nil, true, nil
 	}

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"math/rand"
 	"strconv"
@@ -570,4 +571,19 @@ func buildTagData(t *testing.T, tg tag.Tag) []byte {
 	}
 
 	return data.Bytes()
+}
+
+func TestPeek(t *testing.T) {
+	bs := []byte{0xFF, 0xFE}
+	a := binary.LittleEndian.Uint16(bs)
+	fmt.Printf("%X\n", a)
+	if a == 0xFEFF {
+		fmt.Println("0xFFFE")
+	}
+	a = binary.BigEndian.Uint16(bs)
+	fmt.Printf("%X\n", a)
+	if a == 0xFFFE {
+		fmt.Println("0xFFFE")
+	}
+
 }
