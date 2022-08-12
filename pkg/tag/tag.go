@@ -60,6 +60,10 @@ func IsPrivate(group uint16) bool {
 	return group%2 == 1
 }
 
+func (t Tag) IsPrivate() bool {
+	return IsPrivate(t.Group)
+}
+
 // String returns a string of form "(0008,1234)", where 0x0008 is t.Group,
 // 0x1234 is t.Element.
 func (t Tag) String() string {
@@ -124,7 +128,7 @@ func GetVRKind(tag Tag, vr string) VRKind {
 		return VRItem
 	} else if tag == PixelData {
 		return VRPixelData
-	} else if tag.Group%2 != 0 {
+	} else if tag.IsPrivate() {
 		return VRPrivate
 	}
 

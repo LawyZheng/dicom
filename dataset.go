@@ -2,6 +2,7 @@ package dicom
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -189,7 +190,7 @@ func (d *Dataset) String() string {
 		b.WriteString(fmt.Sprintf("%s  Tag Name: %s\n", tabs, tagName))
 		b.WriteString(fmt.Sprintf("%s  VR: %s\n", tabs, elem.e.ValueRepresentation))
 		b.WriteString(fmt.Sprintf("%s  VR Raw: %s\n", tabs, elem.e.RawValueRepresentation))
-		b.WriteString(fmt.Sprintf("%s  VL: %d\n", tabs, elem.e.ValueLength))
+		b.WriteString(fmt.Sprintf("%s  Length: %d\n", tabs, elem.e.ValueLength))
 		b.WriteString(fmt.Sprintf("%s  Value: %d\n", tabs, elem.e.Value))
 		b.WriteString(fmt.Sprintf("%s]\n\n", tabs))
 	}
@@ -240,4 +241,47 @@ func (d *Dataset) GetPatientName() (string, error) {
 		return "", err
 	}
 	return e.Value.String(), nil
+}
+
+func (d *Dataset) ToJsonString() string {
+	type JsonItem struct {
+		Tag     string
+		TagName string
+		VR      string
+		VRRaw   string
+		Length  string
+		Value   string
+	}
+	list := make([]JsonItem, 0)
+
+	var f = func(v Value) string {
+		var a string
+		if v.ValueType() == Bytes {
+			for _, b := range v.GetValue().([]byte) {
+				a += fmt.Sprintf("%02X ", b)
+			}
+			a = strings.TrimSuffix(a, " ")
+			return "[" + a + "]"
+		} else {
+			return v.String()
+		}
+
+	}
+	for elem := range d.flatIteratorWithLevel() {
+		var tagName string
+		if tagInfo, err := tag.Find(elem.e.Tag); err == nil {
+			tagName = tagInfo.Name
+		}
+
+		list = append(list, JsonItem{
+			Tag:     elem.e.Tag.String(),
+			TagName: tagName,
+			VR:      elem.e.ValueRepresentation.String(),
+			VRRaw:   elem.e.RawValueRepresentation,
+			Length:  fmt.Sprintf("%d", elem.e.ValueLength),
+			Value:   f(elem.e.Value),
+		})
+	}
+	bs, _ := json.Marshal(&list)
+	return string(bs)
 }
