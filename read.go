@@ -161,7 +161,7 @@ func readPixelData(r dicomio.Reader, t tag.Tag, vr string, vl uint32, d *Dataset
 			}
 			image.Frames = append(image.Frames, f)
 		}
-		return &pixelDataValue{PixelDataInfo: image}, nil
+		return &pixelDataValue{PixelDataInfo: image, groupLen: int(vl)}, nil
 	}
 
 	// Assume we're reading NativeData data since we have a defined value length as per Part 5 Sec A.4 of DICOM spec.
@@ -393,6 +393,7 @@ func readSequence(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, err
 			// Append the Item element's dataset of elements to this Sequence's sequencesValue.
 			sequences.value = append(sequences.value, subElement.Value.(*SequenceItemValue))
 		}
+		sequences.groupLen = len(sequences.value)
 	} else {
 		// Sequence of elements for a total of Length bytes
 		err := r.PushLimit(int64(vl))
@@ -410,6 +411,7 @@ func readSequence(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, err
 			sequences.value = append(sequences.value, subElement.Value.(*SequenceItemValue))
 		}
 		r.PopLimit()
+		sequences.groupLen = len(sequences.value)
 	}
 
 	return &sequences, nil
@@ -459,20 +461,27 @@ func readSequenceItem(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value,
 }
 
 // ioReadUntilPrivateSeqEnd peek to SQ End and return SQ data Length
-func ioReadUntilPrivateSeqEnd(r dicomio.Reader) (n int) {
+func ioReadUntilPrivateSeqEnd(r dicomio.Reader) (int, error) {
 	currentDepth := 0
-	n = 0
+	n := 0
 	//0xFF 0xFE 0xE0 0xDD 为序列结束符 同时后面跟 0x00 0x00 0x00 0x00
 	for {
 		// 窥探下 接下来的 n+2 个字节的末尾两个字节是否是 0xFF 0xFE
 		// 小端模式 读取时 会将源数据 反转 即源数据 0xFE 0xFF -> 0xFF 0xFE
-		if a := peekNextUInt16(r, n); a != 0xFFFE {
+		if a, err := peekNextUInt16(r, n); err == nil {
+			if a != 0xFFFE {
+				n += 2
+				continue
+			}
 			n += 2
-			continue
+		} else {
+			return 0, err
 		}
-		n += 2
 
-		u := peekNextUInt16(r, n)
+		u, err := peekNextUInt16(r, n)
+		if err != nil {
+			return 0, err
+		}
 		switch u {
 		case 0xE000: // 遇到Item 起始标志 则深度+1 继续下2个字节的peek
 			currentDepth++
@@ -497,15 +506,18 @@ func ioReadUntilPrivateSeqEnd(r dicomio.Reader) (n int) {
 			continue
 
 		}
-		return n
+		return n, nil
 	}
 }
 
 //peekNextUInt16 peek next n+2 byte and return the last 2 byte
-func peekNextUInt16(r dicomio.Reader, n int) uint16 {
-	out, _ := r.Peek(n + 2)
+func peekNextUInt16(r dicomio.Reader, n int) (uint16, error) {
+	out, err := r.Peek(n + 2)
+	if err != nil {
+		return 0, err
+	}
 	// default is binary.LittleEndian
-	return r.ByteOrder().Uint16(out[len(out)-2:])
+	return r.ByteOrder().Uint16(out[len(out)-2:]), nil
 }
 
 func readBytes(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error) {
@@ -515,11 +527,16 @@ func readBytes(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error)
 		var dataLen = int(vl)
 		// handle SQ when Length is -1
 		if vl == tag.VLUndefinedLength {
-			dataLen = ioReadUntilPrivateSeqEnd(r)
+			var err error
+			dataLen, err = ioReadUntilPrivateSeqEnd(r)
+			if err != nil {
+				return nil, err
+			}
 		}
 		data := make([]byte, dataLen)
 		_, err := io.ReadFull(r, data)
-		return &bytesValue{value: data}, err
+		vl = uint32(dataLen)
+		return &bytesValue{value: data, groupLen: dataLen}, err
 	} else if vr == vrraw.OtherWord {
 		// OW -> stream of 16 bit words
 		if vl%2 != 0 {
@@ -539,7 +556,7 @@ func readBytes(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error)
 				return nil, err
 			}
 		}
-		return &bytesValue{value: buf.Bytes()}, nil
+		return &bytesValue{value: buf.Bytes(), groupLen: buf.Len()}, nil
 	}
 
 	return nil, ErrorUnsupportedVR
@@ -561,7 +578,7 @@ func readString(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error
 	// Split multiple strings
 	strs := strings.Split(str, "\\")
 
-	return &stringsValue{value: strs}, err
+	return &stringsValue{value: strs, groupLen: int(vl)}, err
 }
 
 func readFloat(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error) {
@@ -569,7 +586,7 @@ func readFloat(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error)
 	if err != nil {
 		return nil, err
 	}
-	retVal := &floatsValue{value: make([]float64, 0, vl/2)}
+	retVal := &floatsValue{value: make([]float64, 0, vl/2), groupLen: int(vl)}
 	for !r.IsLimitExhausted() {
 		switch vr {
 		case vrraw.FloatingPointSingle:
@@ -608,7 +625,7 @@ func readDate(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error) 
 	}
 	date := strings.Trim(rawDate, " \000")
 
-	return &stringsValue{value: []string{date}}, nil
+	return &stringsValue{value: []string{date}, groupLen: int(vl)}, nil
 
 }
 
@@ -618,7 +635,7 @@ func readInt(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	retVal := &intsValue{value: make([]int, 0, vl/2)}
+	retVal := &intsValue{value: make([]int, 0, vl/2), groupLen: int(vl)}
 	for !r.IsLimitExhausted() {
 		switch vr {
 		case vrraw.UnsignedShort, vrraw.AttributeTag:

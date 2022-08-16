@@ -161,6 +161,16 @@ func NewParser(in io.Reader, bytesToRead int64, frameChannel chan *frame.Frame, 
 	return &p, nil
 }
 
+func (p *Parser) FetchAll() error {
+	for !p.reader.IsLimitExhausted() {
+		_, err := p.Next()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Next parses and returns the next top-level element from the DICOM this Parser points to.
 func (p *Parser) Next() (*Element, error) {
 	if p.reader.IsLimitExhausted() {
