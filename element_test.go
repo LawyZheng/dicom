@@ -93,7 +93,7 @@ func TestNewValue(t *testing.T) {
 			// TODO: maybe enhance this case
 			name:      "PixelDataInfo",
 			data:      PixelDataInfo{IsEncapsulated: true},
-			wantValue: &pixelDataValue{PixelDataInfo{IsEncapsulated: true}},
+			wantValue: &pixelDataValue{PixelDataInfo: PixelDataInfo{IsEncapsulated: true}},
 			wantError: nil,
 		},
 		{
