@@ -122,6 +122,15 @@ func SkipValueTypeVerification() WriteOption {
 	}
 }
 
+// NotKeepGroupLength returns WriteOption function that do not keep Group Length
+// for private SQ with Length -1.
+// so the Length will be updated to the actual data length after writing to new dicom file
+func NotKeepGroupLength() WriteOption {
+	return func(set *writeOptSet) {
+		set.notKeepGroupLength = true
+	}
+}
+
 // DefaultMissingTransferSyntax returns a WriteOption indicating that a missing
 // transferSyntax should not raise an error, and instead the default
 // LittleEndian Implicit transfer syntax should be used and written out as a
@@ -137,6 +146,7 @@ type writeOptSet struct {
 	skipVRVerification           bool
 	skipValueTypeVerification    bool
 	defaultMissingTransferSyntax bool
+	notKeepGroupLength           bool
 	es                           charset.EncodingSystem
 }
 
@@ -246,7 +256,11 @@ func writeElement(w dicomio.Writer, elem *Element, opts writeOptSet) error {
 		length = uint32(len(valueData.Bytes()))
 		if elem.ValueLength == tag.VLUndefinedLength {
 			length = tag.VLUndefinedLength
+			if opts.notKeepGroupLength && elem.Tag.IsPrivate() {
+				length = uint32(elem.Value.GetGroupLen())
+			}
 		}
+
 	}
 
 	err = encodeElementHeader(w, elem.Tag, vr, length)
@@ -448,7 +462,7 @@ func encodeElementHeader(w dicomio.Writer, t tag.Tag, vr string, vl uint32) erro
 }
 
 func writeValue(w dicomio.Writer, t tag.Tag, value Value, valueType ValueType, vr string, vl uint32, opts writeOptSet) error {
-	if vl == tag.VLUndefinedLength && valueType <= 2 { // strings, bytes or ints
+	if vl == tag.VLUndefinedLength && (valueType == 0 || valueType == 2) { // strings, bytes or ints
 		return fmt.Errorf("encoding undefined-length element not yet supported: %v", t)
 	}
 

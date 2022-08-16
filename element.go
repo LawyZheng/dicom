@@ -75,6 +75,7 @@ type Value interface {
 	GetValue() interface{} // TODO: rename to Get to read cleaner
 	String() string
 	MarshalJSON() ([]byte, error)
+	GetGroupLen() int
 }
 
 // NewValue creates a new DICOM value for the supplied data. Likely most useful
@@ -191,7 +192,12 @@ const (
 
 // bytesValue represents a value of []byte.
 type bytesValue struct {
-	value []byte
+	value    []byte
+	groupLen int
+}
+
+func (b *bytesValue) GetGroupLen() int {
+	return b.groupLen
 }
 
 func (b *bytesValue) isElementValue()       {}
@@ -206,7 +212,12 @@ func (b *bytesValue) MarshalJSON() ([]byte, error) {
 
 // stringsValue represents a value of []string.
 type stringsValue struct {
-	value []string
+	value    []string
+	groupLen int
+}
+
+func (s *stringsValue) GetGroupLen() int {
+	return s.groupLen
 }
 
 func (s *stringsValue) isElementValue()       {}
@@ -221,7 +232,12 @@ func (s *stringsValue) MarshalJSON() ([]byte, error) {
 
 // intsValue represents a value of []int.
 type intsValue struct {
-	value []int
+	value    []int
+	groupLen int
+}
+
+func (s *intsValue) GetGroupLen() int {
+	return s.groupLen
 }
 
 func (s *intsValue) isElementValue()       {}
@@ -236,7 +252,12 @@ func (s *intsValue) MarshalJSON() ([]byte, error) {
 
 // floatsValue represents a value of []float64.
 type floatsValue struct {
-	value []float64
+	value    []float64
+	groupLen int
+}
+
+func (s *floatsValue) GetGroupLen() int {
+	return s.groupLen
 }
 
 func (s *floatsValue) isElementValue()       {}
@@ -254,6 +275,11 @@ func (s *floatsValue) MarshalJSON() ([]byte, error) {
 // http://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_7.5.html.
 type SequenceItemValue struct {
 	elements []*Element
+	groupLen int
+}
+
+func (s *SequenceItemValue) GetGroupLen() int {
+	return s.groupLen
 }
 
 func (s *SequenceItemValue) isElementValue() {}
@@ -280,7 +306,12 @@ func (s *SequenceItemValue) MarshalJSON() ([]byte, error) {
 
 // sequencesValue represents a set of items in a DICOM sequence.
 type sequencesValue struct {
-	value []*SequenceItemValue
+	value    []*SequenceItemValue
+	groupLen int
+}
+
+func (s *sequencesValue) GetGroupLen() int {
+	return s.groupLen
 }
 
 func (s *sequencesValue) isElementValue()       {}
@@ -304,6 +335,11 @@ type PixelDataInfo struct {
 // pixelDataValue represents DICOM PixelData
 type pixelDataValue struct {
 	PixelDataInfo
+	groupLen int
+}
+
+func (e *pixelDataValue) GetGroupLen() int {
+	return e.groupLen
 }
 
 func (e *pixelDataValue) isElementValue()       {}
