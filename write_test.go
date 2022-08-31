@@ -464,6 +464,9 @@ func TestWrite(t *testing.T) {
 				cmpOpts := []cmp.Option{
 					cmp.AllowUnexported(allValues...),
 					cmpopts.IgnoreFields(Element{}, "ValueLength"),
+					cmpopts.IgnoreFields(stringsValue{}, "groupLen"),
+					cmpopts.IgnoreFields(intsValue{}, "groupLen"),
+					cmpopts.IgnoreFields(floatsValue{}, "groupLen"),
 					cmpopts.IgnoreSliceElements(func(e *Element) bool { return e.Tag == tag.FileMetaInformationGroupLength }),
 					cmpopts.SortSlices(func(x, y *Element) bool { return x.Tag.Compare(y.Tag) == 1 }),
 				}
@@ -705,7 +708,12 @@ func TestWriteElement(t *testing.T) {
 			t.Errorf("error in reading element %s: %s", readElem.String(), err.Error())
 		}
 
-		if diff := cmp.Diff(writtenElem, readElem, cmp.AllowUnexported(allValues...), cmpopts.IgnoreFields(Element{}, "ValueLength")); diff != "" {
+		if diff := cmp.Diff(writtenElem, readElem,
+			cmp.AllowUnexported(allValues...),
+			cmpopts.IgnoreFields(stringsValue{}, "groupLen"),
+			cmpopts.IgnoreFields(intsValue{}, "groupLen"),
+			cmpopts.IgnoreFields(floatsValue{}, "groupLen"),
+			cmpopts.IgnoreFields(Element{}, "ValueLength")); diff != "" {
 			t.Errorf("unexpected diff in element: %s", diff)
 		}
 	}

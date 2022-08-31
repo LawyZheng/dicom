@@ -68,25 +68,25 @@ func TestNewValue(t *testing.T) {
 		{
 			name:      "strings",
 			data:      []string{"a", "b"},
-			wantValue: &stringsValue{value: []string{"a", "b"}},
+			wantValue: &stringsValue{value: []string{"a", "b"}, groupLen: 2},
 			wantError: nil,
 		},
 		{
 			name:      "floats",
 			data:      []float64{1.11, 1.22},
-			wantValue: &floatsValue{value: []float64{1.11, 1.22}},
+			wantValue: &floatsValue{value: []float64{1.11, 1.22}, groupLen: 2},
 			wantError: nil,
 		},
 		{
 			name:      "ints",
 			data:      []int{1, 2},
-			wantValue: &intsValue{value: []int{1, 2}},
+			wantValue: &intsValue{value: []int{1, 2}, groupLen: 2},
 			wantError: nil,
 		},
 		{
 			name:      "bytes",
 			data:      []byte{0x00, 0x01},
-			wantValue: &bytesValue{value: []byte{0x00, 0x01}},
+			wantValue: &bytesValue{value: []byte{0x00, 0x01}, groupLen: 2},
 			wantError: nil,
 		},
 		{

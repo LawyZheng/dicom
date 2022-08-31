@@ -233,7 +233,7 @@ func (p *Parser) readHeader() ([]*Element, error) {
 		return nil, err
 	}
 	if string(data[128:]) != magicWord {
-		return nil, nil
+		return nil, ErrorMagicWord
 	}
 
 	err = p.reader.Skip(128 + 4) // skip preamble + magic word
