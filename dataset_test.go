@@ -1,7 +1,6 @@
 package dicom
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/LawyZheng/go-dicom/pkg/tag"
@@ -128,7 +127,7 @@ func TestDataset_FlatStatefulIterator(t *testing.T) {
 	}
 }
 
-func ExampleDataset_FlatIterator() {
+func TestExampleDataset_FlatIterator(t *testing.T) {
 	nestedData := [][]*Element{
 		{
 			mustNewElement(tag.PatientName, []string{"Bob"}),
@@ -149,7 +148,7 @@ func ExampleDataset_FlatIterator() {
 	// a channel API (just want to loop over items), use FlatStatefulIterator
 	// instead, which is much simpler.
 	for elem := range data.FlatIterator() {
-		fmt.Println(elem.Tag)
+		t.Log(elem.Tag)
 	}
 
 	// Note the output below includes all three leaf elements __as well as__ the sequence element's tag
@@ -161,7 +160,7 @@ func ExampleDataset_FlatIterator() {
 	// (0046,0102)
 }
 
-func ExampleDataset_FlatIteratorWithExhaustAllElements() {
+func TestExampleDataset_FlatIteratorWithExhaustAllElements(t *testing.T) {
 	nestedData := [][]*Element{
 		{
 			mustNewElement(tag.PatientName, []string{"Bob"}),
@@ -183,7 +182,7 @@ func ExampleDataset_FlatIteratorWithExhaustAllElements() {
 	// but might return early if there's an error).
 	elemChan := data.FlatIterator()
 	defer ExhaustElementChannel(elemChan)
-	fmt.Println((<-elemChan).Tag)
+	t.Log((<-elemChan).Tag)
 
 	// Note the output below includes all three leaf elements __as well as__ the sequence element's tag
 
@@ -191,7 +190,7 @@ func ExampleDataset_FlatIteratorWithExhaustAllElements() {
 	// (0028,0010)
 }
 
-func ExampleDataset_FlatStatefulIterator() {
+func TestExampleDataset_FlatStatefulIterator(t *testing.T) {
 	nestedData := [][]*Element{
 		{
 			{
@@ -210,14 +209,16 @@ func ExampleDataset_FlatStatefulIterator() {
 				Tag:                 tag.Rows,
 				ValueRepresentation: tag.VRInt32List,
 				Value: &intsValue{
-					value: []int{100},
+					value:    []int{100},
+					groupLen: 1,
 				},
 			},
 			{
 				Tag:                 tag.Columns,
 				ValueRepresentation: tag.VRInt32List,
 				Value: &intsValue{
-					value: []int{200},
+					value:    []int{200},
+					groupLen: 1,
 				},
 			},
 			makeSequenceElement(tag.AddOtherSequence, nestedData),
@@ -225,7 +226,7 @@ func ExampleDataset_FlatStatefulIterator() {
 	}
 
 	for iter := data.FlatStatefulIterator(); iter.HasNext(); {
-		fmt.Println(iter.Next().Tag)
+		t.Log(iter.Next().Tag)
 	}
 
 	// Note the output below includes all three leaf elements __as well as__ the sequence element's tag
@@ -237,7 +238,7 @@ func ExampleDataset_FlatStatefulIterator() {
 	// (0046,0102)
 }
 
-func ExampleDataset_String() {
+func TestExampleDataset_String(t *testing.T) {
 	d := Dataset{
 		Elements: []*Element{
 			{
@@ -245,7 +246,8 @@ func ExampleDataset_String() {
 				ValueRepresentation:    tag.VRInt32List,
 				RawValueRepresentation: "UL",
 				Value: &intsValue{
-					value: []int{100},
+					value:    []int{100},
+					groupLen: 1,
 				},
 			},
 			{
@@ -253,13 +255,14 @@ func ExampleDataset_String() {
 				ValueRepresentation:    tag.VRInt32List,
 				RawValueRepresentation: "UL",
 				Value: &intsValue{
-					value: []int{200},
+					value:    []int{200},
+					groupLen: 1,
 				},
 			},
 		},
 	}
 
-	fmt.Println(d.String())
+	t.Log(d.String())
 
 	// Output:
 	// [

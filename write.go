@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/LawyZheng/go-dicom/pkg/debug"
 	"io"
 
 	"golang.org/x/text/encoding"
@@ -122,6 +123,15 @@ func SkipValueTypeVerification() WriteOption {
 	}
 }
 
+// NotKeepGroupLength returns WriteOption function that do not keep Group Length
+// for private SQ with Length -1.
+// so the Length will be updated to the actual data length after writing to new dicom file
+func NotKeepGroupLength() WriteOption {
+	return func(set *writeOptSet) {
+		set.notKeepGroupLength = true
+	}
+}
+
 // DefaultMissingTransferSyntax returns a WriteOption indicating that a missing
 // transferSyntax should not raise an error, and instead the default
 // LittleEndian Implicit transfer syntax should be used and written out as a
@@ -137,6 +147,7 @@ type writeOptSet struct {
 	skipVRVerification           bool
 	skipValueTypeVerification    bool
 	defaultMissingTransferSyntax bool
+	notKeepGroupLength           bool
 	es                           charset.EncodingSystem
 }
 
@@ -232,7 +243,7 @@ func writeElement(w dicomio.Writer, elem *Element, opts writeOptSet) error {
 			return err
 		}
 	}
-
+	debug.Logf("write element (%.4X,%.4X) VR:%s VL: %d", elem.Tag.Group, elem.Tag.Element, elem.RawValueRepresentation, elem.ValueLength)
 	length := elem.ValueLength
 	var valueData = &bytes.Buffer{}
 	if elem.Value != nil {
@@ -246,7 +257,11 @@ func writeElement(w dicomio.Writer, elem *Element, opts writeOptSet) error {
 		length = uint32(len(valueData.Bytes()))
 		if elem.ValueLength == tag.VLUndefinedLength {
 			length = tag.VLUndefinedLength
+			if opts.notKeepGroupLength && elem.Tag.IsPrivate() {
+				length = uint32(elem.Value.GetGroupLen())
+			}
 		}
+
 	}
 
 	err = encodeElementHeader(w, elem.Tag, vr, length)
@@ -261,6 +276,7 @@ func writeElement(w dicomio.Writer, elem *Element, opts writeOptSet) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -353,6 +369,7 @@ func writeTag(w dicomio.Writer, t tag.Tag, vl uint32) error {
 		return fmt.Errorf("ERROR dicomio.writeTag: Value Length must be even, but for Tag=%v, ValueLength=%v",
 			tag.DebugString(t), vl)
 	}
+
 	if err := w.WriteUInt16(t.Group); err != nil {
 		return err
 	}
@@ -365,10 +382,10 @@ func writeVRVL(w dicomio.Writer, t tag.Tag, vr string, vl uint32) error {
 		vl = tag.VLUndefinedLength
 	}
 
-	if t.Group%2 == 0 && vr == vrraw.Sequence {
-		// We are going to write these out with undefined length always.
-		vl = tag.VLUndefinedLength
-	}
+	//if t.Group%2 == 0 && vr == vrraw.Sequence {
+	//	// We are going to write these out with undefined length always.
+	//	vl = tag.VLUndefinedLength
+	//}
 
 	// We want to make sure there is any VR unless this is a Sequence delimiter.
 	if len(vr) != 2 && vl != tag.VLUndefinedLength && t != tag.SequenceDelimitationItem && t != tag.ItemDelimitationItem {
@@ -423,6 +440,8 @@ func writeRawItem(w dicomio.Writer, data []byte) error {
 	return nil
 }
 
+// writeBasicOffsetTable 写入PixelData的第一帧
+// 注意 offsets 不是[]byte  例如. 0x00 0x00 0x00 0x00 => 0
 func writeBasicOffsetTable(w dicomio.Writer, offsets []uint32) error {
 	byteOrder, implicit := w.GetTransferSyntax()
 	data := &bytes.Buffer{}
@@ -448,10 +467,10 @@ func encodeElementHeader(w dicomio.Writer, t tag.Tag, vr string, vl uint32) erro
 }
 
 func writeValue(w dicomio.Writer, t tag.Tag, value Value, valueType ValueType, vr string, vl uint32, opts writeOptSet) error {
-	if vl == tag.VLUndefinedLength && valueType <= 2 { // strings, bytes or ints
+	if vl == tag.VLUndefinedLength && (valueType == 0 || valueType == 2) { // strings, bytes or ints
 		return fmt.Errorf("encoding undefined-length element not yet supported: %v", t)
 	}
-
+	noDelimitationItem := value.GetNoDelimitationItem()
 	v := value.GetValue()
 	switch valueType {
 	case Strings:
@@ -463,9 +482,9 @@ func writeValue(w dicomio.Writer, t tag.Tag, value Value, valueType ValueType, v
 	case PixelData:
 		return writePixelData(w, t, value, vr, vl)
 	case SequenceItem:
-		return writeSequenceItem(w, t, v.([]*Element), vr, vl, opts)
+		return writeSequenceItem(w, t, v.([]*Element), vr, vl, opts, false)
 	case Sequences:
-		return writeSequence(w, t, v.([]*SequenceItemValue), vr, vl, opts)
+		return writeSequence(w, t, v.([]*SequenceItemValue), vr, vl, opts, noDelimitationItem)
 	case Floats:
 		return writeFloats(w, value, vr)
 	default:
@@ -588,9 +607,11 @@ func writeFloats(w dicomio.Writer, v Value, vr string) error {
 func writePixelData(w dicomio.Writer, t tag.Tag, value Value, vr string, vl uint32) error {
 	image := MustGetPixelDataInfo(value)
 	if vl == tag.VLUndefinedLength {
+		//写入偏移表
 		if err := writeBasicOffsetTable(w, image.Offsets); err != nil {
 			return err
 		}
+		//写入图像帧
 		for _, frame := range image.Frames {
 			if err := writeRawItem(w, frame.EncapsulatedData.Data); err != nil {
 				return err
@@ -651,20 +672,24 @@ var sequenceDelimitationItem = &Element{
 	ValueLength: 0, // This should be 00000000H in base32
 }
 
-func writeSequence(w dicomio.Writer, t tag.Tag, values []*SequenceItemValue, vr string, vl uint32, opts writeOptSet) error {
+func writeSequence(w dicomio.Writer, t tag.Tag, values []*SequenceItemValue, vr string, vl uint32, opts writeOptSet, noDelimitationItem bool) error {
 	// We always write out sequences using the undefined length encoding.
 	// Note: we currently don't validate that the length of the sequence matches
 	// the VL if it's not undefined VL.
 	// More details about the sequence structure can be found at:
 	// http://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_7.5.html
-
+	if vl == 0 {
+		return nil
+	}
 	// Write out the items.
 	for _, seqItem := range values {
-		if err := writeSequenceItem(w, t, seqItem.elements, vr, vl, opts); err != nil {
+		if err := writeSequenceItem(w, t, seqItem.elements, vr, uint32(seqItem.groupLen), opts, seqItem.noDelimitationItem); err != nil {
 			return err
 		}
 	}
-
+	if noDelimitationItem {
+		return nil
+	}
 	// Write Sequence Delimitation Item as implicit VR
 	oldBO, oldImplicit := w.GetTransferSyntax()
 	w.SetTransferSyntax(oldBO, true)
@@ -686,9 +711,13 @@ var item = &Element{
 	ValueLength: tag.VLUndefinedLength,
 }
 
-func writeSequenceItem(w dicomio.Writer, t tag.Tag, values []*Element, vr string, vl uint32, opts writeOptSet) error {
-	// Write out item header.
-	if err := writeElement(w, item, opts); err != nil {
+func writeSequenceItem(w dicomio.Writer, t tag.Tag, values []*Element, vr string, vl uint32, opts writeOptSet, noDelimitationItem bool) error {
+	itemToWrite := item
+	if vl != tag.VLUndefinedLength && vl != 0 {
+		itemToWrite.ValueLength = vl
+	}
+	// Write out item header. 0xFFFE E000
+	if err := writeElement(w, itemToWrite, opts); err != nil {
 		return err
 	}
 
@@ -698,7 +727,9 @@ func writeSequenceItem(w dicomio.Writer, t tag.Tag, values []*Element, vr string
 			return err
 		}
 	}
-
+	if noDelimitationItem {
+		return nil
+	}
 	// Write ItemDelimitationItem.
 	return writeElement(w, sequenceItemDelimitationItem, opts)
 }

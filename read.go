@@ -132,18 +132,25 @@ func readPixelData(r dicomio.Reader, t tag.Tag, vr string, vl uint32, d *Dataset
 		var image PixelDataInfo
 		image.IsEncapsulated = true
 		// The first Item in PixelData is the basic offset table. Skip this for now.
-		// TODO: use basic offset table
-		_, _, err := readRawItem(r)
+		// use basic offset table
+
+		// linx: 像素数据的第一个frame段为偏移表，保存着各个frame段的偏移量
+		myoffsets, _, err := readRawItem(r)
 		if err != nil {
 			return nil, err
 		}
-
+		// linx: 每四个字节转为uint32存储
+		for i := 0; i < len(myoffsets); i += 4 {
+			u := r.ByteOrder().Uint32(myoffsets[i : i+4])
+			image.Offsets = append(image.Offsets, u)
+		}
+		// linx: 这里开始正式读取各个图像帧
 		for !r.IsLimitExhausted() {
 			data, endOfItems, err := readRawItem(r)
 			if err != nil {
 				break
 			}
-
+			// 如果到结尾则跳出
 			if endOfItems {
 				break
 			}
@@ -161,7 +168,7 @@ func readPixelData(r dicomio.Reader, t tag.Tag, vr string, vl uint32, d *Dataset
 			}
 			image.Frames = append(image.Frames, f)
 		}
-		return &pixelDataValue{PixelDataInfo: image}, nil
+		return &pixelDataValue{PixelDataInfo: image, groupLen: int(vl)}, nil
 	}
 
 	// Assume we're reading NativeData data since we have a defined value length as per Part 5 Sec A.4 of DICOM spec.
@@ -293,7 +300,7 @@ func readNativeFrames(d dicomio.Reader, parsedData *Dataset, fc chan<- *frame.Fr
 	}
 
 	pixelsPerFrame := row * col
-	debug.Logf("readNativeFrames:\nRows: %d\nCols:%d\nFrames::%d\nBitsAlloc:%d\nSamplesPerPixel:%d", row, col, nFrames, bitsAllocated, samplesPerPixel)
+	debug.Logf("readNativeFrames:\n\tRows: %d\n\tCols:%d\n\tFrames::%d\n\tBitsAlloc:%d\n\tSamplesPerPixel:%d", row, col, nFrames, bitsAllocated, samplesPerPixel)
 
 	// Parse the pixels:
 	image.Frames = make([]frame.Frame, nFrames)
@@ -393,23 +400,31 @@ func readSequence(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, err
 			// Append the Item element's dataset of elements to this Sequence's sequencesValue.
 			sequences.value = append(sequences.value, subElement.Value.(*SequenceItemValue))
 		}
+
+		sequences.groupLen = len(sequences.value)
 	} else {
 		// Sequence of elements for a total of Length bytes
 		err := r.PushLimit(int64(vl))
 		if err != nil {
 			return nil, err
 		}
+		hasDelimitationItem := false
 		for !r.IsLimitExhausted() {
 			subElement, err := readElement(r, nil, nil)
 			if err != nil {
 				// TODO: option to ignore errors parsing subelements?
 				return nil, err
 			}
-
+			if subElement.Tag.Group == 0xFFFE && (subElement.Tag.Element == 0xE00D || subElement.Tag.Element == 0xE0DD) {
+				hasDelimitationItem = true
+			}
 			// Append the Item element's dataset of elements to this Sequence's sequencesValue.
 			sequences.value = append(sequences.value, subElement.Value.(*SequenceItemValue))
 		}
 		r.PopLimit()
+		//处理没有Delimitation Item的情况
+		sequences.noDelimitation = !hasDelimitationItem
+		sequences.groupLen = len(sequences.value)
 	}
 
 	return &sequences, nil
@@ -442,16 +457,26 @@ func readSequenceItem(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value,
 		if err != nil {
 			return nil, err
 		}
-
+		hasDelimitationItem := false
 		for !r.IsLimitExhausted() {
 			subElem, err := readElement(r, &seqElements, nil)
 			if err != nil {
 				return nil, err
 			}
+			if subElem.Tag.Group == 0xFFFE && subElem.Tag.Element == 0xE00D {
+				hasDelimitationItem = true
+			}
 
 			sequenceItem.elements = append(sequenceItem.elements, subElem)
 			seqElements.Elements = append(seqElements.Elements, subElem)
 		}
+		sequenceItem.noDelimitationItem = !hasDelimitationItem
+		if vl == tag.VLUndefinedLength {
+			sequenceItem.groupLen = 0xffffffff
+		} else {
+			sequenceItem.groupLen = int(vl)
+		}
+
 		r.PopLimit()
 	}
 
@@ -459,20 +484,27 @@ func readSequenceItem(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value,
 }
 
 // ioReadUntilPrivateSeqEnd peek to SQ End and return SQ data Length
-func ioReadUntilPrivateSeqEnd(r dicomio.Reader) (n int) {
+func ioReadUntilPrivateSeqEnd(r dicomio.Reader) (int, error) {
 	currentDepth := 0
-	n = 0
+	n := 0
 	//0xFF 0xFE 0xE0 0xDD 为序列结束符 同时后面跟 0x00 0x00 0x00 0x00
 	for {
 		// 窥探下 接下来的 n+2 个字节的末尾两个字节是否是 0xFF 0xFE
 		// 小端模式 读取时 会将源数据 反转 即源数据 0xFE 0xFF -> 0xFF 0xFE
-		if a := peekNextUInt16(r, n); a != 0xFFFE {
+		if a, err := peekNextUInt16(r, n); err == nil {
+			if a != 0xFFFE {
+				n += 2
+				continue
+			}
 			n += 2
-			continue
+		} else {
+			return 0, err
 		}
-		n += 2
 
-		u := peekNextUInt16(r, n)
+		u, err := peekNextUInt16(r, n)
+		if err != nil {
+			return 0, err
+		}
 		switch u {
 		case 0xE000: // 遇到Item 起始标志 则深度+1 继续下2个字节的peek
 			currentDepth++
@@ -497,15 +529,18 @@ func ioReadUntilPrivateSeqEnd(r dicomio.Reader) (n int) {
 			continue
 
 		}
-		return n
+		return n, nil
 	}
 }
 
-//peekNextUInt16 peek next n+2 byte and return the last 2 byte
-func peekNextUInt16(r dicomio.Reader, n int) uint16 {
-	out, _ := r.Peek(n + 2)
+// peekNextUInt16 peek next n+2 byte and return the last 2 byte
+func peekNextUInt16(r dicomio.Reader, n int) (uint16, error) {
+	out, err := r.Peek(n + 2)
+	if err != nil {
+		return 0, err
+	}
 	// default is binary.LittleEndian
-	return r.ByteOrder().Uint16(out[len(out)-2:])
+	return r.ByteOrder().Uint16(out[len(out)-2:]), nil
 }
 
 func readBytes(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error) {
@@ -515,11 +550,16 @@ func readBytes(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error)
 		var dataLen = int(vl)
 		// handle SQ when Length is -1
 		if vl == tag.VLUndefinedLength {
-			dataLen = ioReadUntilPrivateSeqEnd(r)
+			var err error
+			dataLen, err = ioReadUntilPrivateSeqEnd(r)
+			if err != nil {
+				return nil, err
+			}
 		}
 		data := make([]byte, dataLen)
 		_, err := io.ReadFull(r, data)
-		return &bytesValue{value: data}, err
+		vl = uint32(dataLen)
+		return &bytesValue{value: data, groupLen: dataLen}, err
 	} else if vr == vrraw.OtherWord {
 		// OW -> stream of 16 bit words
 		if vl%2 != 0 {
@@ -539,7 +579,7 @@ func readBytes(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error)
 				return nil, err
 			}
 		}
-		return &bytesValue{value: buf.Bytes()}, nil
+		return &bytesValue{value: buf.Bytes(), groupLen: buf.Len()}, nil
 	}
 
 	return nil, ErrorUnsupportedVR
@@ -561,7 +601,7 @@ func readString(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error
 	// Split multiple strings
 	strs := strings.Split(str, "\\")
 
-	return &stringsValue{value: strs}, err
+	return &stringsValue{value: strs, groupLen: int(vl)}, err
 }
 
 func readFloat(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error) {
@@ -569,7 +609,7 @@ func readFloat(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error)
 	if err != nil {
 		return nil, err
 	}
-	retVal := &floatsValue{value: make([]float64, 0, vl/2)}
+	retVal := &floatsValue{value: make([]float64, 0, vl/2), groupLen: int(vl)}
 	for !r.IsLimitExhausted() {
 		switch vr {
 		case vrraw.FloatingPointSingle:
@@ -608,7 +648,7 @@ func readDate(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error) 
 	}
 	date := strings.Trim(rawDate, " \000")
 
-	return &stringsValue{value: []string{date}}, nil
+	return &stringsValue{value: []string{date}, groupLen: int(vl)}, nil
 
 }
 
@@ -618,7 +658,7 @@ func readInt(r dicomio.Reader, t tag.Tag, vr string, vl uint32) (Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	retVal := &intsValue{value: make([]int, 0, vl/2)}
+	retVal := &intsValue{value: make([]int, 0, vl/2), groupLen: int(vl)}
 	for !r.IsLimitExhausted() {
 		switch vr {
 		case vrraw.UnsignedShort, vrraw.AttributeTag:
@@ -667,7 +707,6 @@ func readElement(r dicomio.Reader, d *Dataset, fc chan<- *frame.Frame) (*Element
 	if err != nil {
 		return nil, err
 	}
-	debug.Logf("readElement: tag: %s", t.String())
 
 	readImplicit := r.IsImplicit()
 	if *t == tag.Item {
@@ -679,14 +718,15 @@ func readElement(r dicomio.Reader, d *Dataset, fc chan<- *frame.Frame) (*Element
 	if err != nil {
 		return nil, err
 	}
-	debug.Logf("readElement: vr: %s", vr)
+	//debug.Logf("readElement: vr: %s", vr)
 
 	vl, err := readVL(r, readImplicit, *t, vr)
 	if err != nil {
 		return nil, err
 	}
-	debug.Logf("readElement: vl: %d", vl)
+	//debug.Logf("readElement: vl: %d", vl)
 
+	debug.Logf("readElement: tag: (%.4X,%.4X) VR: %s VL: %d", t.Group, t.Element, vr, vl)
 	val, err := readValue(r, *t, vr, vl, readImplicit, d, fc)
 	if err != nil {
 		log.Printf("tag: %s, error reading value %s", *t, err)
@@ -717,16 +757,16 @@ func readRawItem(r dicomio.Reader) ([]byte, bool, error) {
 
 	if *t == tag.SequenceDelimitationItem {
 		if vl != 0 {
-			log.Printf("SequenceDelimitationItem's Length != 0: %d", vl)
+			debug.Logf("SequenceDelimitationItem's Length != 0: %d", vl)
 		}
 		return nil, true, nil
 	}
 	if *t != tag.Item {
-		log.Printf("Expect Item in pixeldata but found tag %s", tag.DebugString(*t))
+		debug.Logf("Expect Item in pixeldata but found tag %s", tag.DebugString(*t))
 		return nil, false, nil
 	}
 	if vl == tag.VLUndefinedLength {
-		log.Println("Expect defined-length item in pixeldata")
+		debug.Log("Expect defined-length item in pixeldata")
 		return nil, false, nil
 	}
 	if vr != "NA" {
@@ -736,7 +776,7 @@ func readRawItem(r dicomio.Reader) ([]byte, bool, error) {
 	data := make([]byte, vl)
 	_, err = io.ReadFull(r, data)
 	if err != nil {
-		log.Println(err)
+		debug.Log(err.Error())
 		return nil, false, err
 	}
 	return data, false, nil

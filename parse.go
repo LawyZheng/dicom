@@ -161,6 +161,16 @@ func NewParser(in io.Reader, bytesToRead int64, frameChannel chan *frame.Frame, 
 	return &p, nil
 }
 
+func (p *Parser) FetchAll() error {
+	for !p.reader.IsLimitExhausted() {
+		_, err := p.Next()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Next parses and returns the next top-level element from the DICOM this Parser points to.
 func (p *Parser) Next() (*Element, error) {
 	if p.reader.IsLimitExhausted() {
@@ -223,7 +233,7 @@ func (p *Parser) readHeader() ([]*Element, error) {
 		return nil, err
 	}
 	if string(data[128:]) != magicWord {
-		return nil, nil
+		return nil, ErrorMagicWord
 	}
 
 	err = p.reader.Skip(128 + 4) // skip preamble + magic word

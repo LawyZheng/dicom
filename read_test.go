@@ -74,7 +74,7 @@ func TestReadFloat_float64(t *testing.T) {
 			name:        "float64",
 			floats:      []float64{20.1, 32.22},
 			VR:          vrraw.FloatingPointDouble,
-			want:        &floatsValue{value: []float64{20.1, 32.22}},
+			want:        &floatsValue{value: []float64{20.1, 32.22}, groupLen: 16},
 			expectedErr: nil,
 		},
 		{
@@ -123,7 +123,7 @@ func TestReadFloat_float32(t *testing.T) {
 			name:        "float32",
 			floats:      []float32{20.1001, 32.22},
 			VR:          vrraw.FloatingPointSingle,
-			want:        &floatsValue{value: []float64{20.1001, 32.22}},
+			want:        &floatsValue{value: []float64{20.1001, 32.22}, groupLen: 8},
 			expectedErr: nil,
 		},
 		{
@@ -172,7 +172,7 @@ func TestReadOWBytes(t *testing.T) {
 			name:        "even-number bytes",
 			bytes:       []byte{0x1, 0x2, 0x3, 0x4},
 			VR:          vrraw.OtherWord,
-			want:        &bytesValue{value: []byte{0x1, 0x2, 0x3, 0x4}},
+			want:        &bytesValue{value: []byte{0x1, 0x2, 0x3, 0x4}, groupLen: 4},
 			expectedErr: nil,
 		},
 		{
